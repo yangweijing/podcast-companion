@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#F4F3ED">
+  <title>小宇宙 · 播客伴读</title>
+  <style>
+    :root {
+      --paper: #F4F3ED;         /* 纸面 */
+      --surface: #FBFAF5;       /* 卡片 */
+      --surface-2: #F0EEE6;     /* 内嵌面板 */
+      --ink: #22201B;           /* 正文墨色 */
+      --ink-2: #4C483E;         /* 次级文字 */
+      --muted: #8A8576;         /* 弱化灰 */
+      --line: #E1DED1;          /* 细线 */
+      --line-2: #CBC7B7;        /* 强细线 */
+      --accent: #B33A28;        /* 朱砂红：编辑批注 / 重点 / 主要操作 */
+      --accent-deep: #8C2B1D;
+      --accent-soft: #F5E9E4;
+      --blue: #3E5A72;          /* 靛蓝：读者主观标注 / 原文 */
+      --blue-soft: #EDF1F4;
+      --green: #4E7A55;         /* 已完成 */
+      --green-soft: #E9F0EA;
+      --amber: #97732E;         /* 处理中 */
+      --amber-soft: #F5EEDB;
+      --danger: #A63225;
+      --danger-soft: #F6EAE7;
+      --serif: Georgia, "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --radius: 6px;
+      --action-w: 132px;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; padding: 0;
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.7; font-size: 15px;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    ::selection { background: var(--accent); color: #fff; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .app { width: 100%; max-width: 720px; margin: 0 auto; padding: 0 22px 96px; }
+
+    /* 报头：像一本伴读杂志的刊头 */
+    .app-header {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+      padding: 44px 0 26px; border-bottom: 1px solid var(--line-2);
+    }
+    .masthead { min-width: 0; }
+    .masthead-eyebrow {
+      font-size: 11px; letter-spacing: .24em; text-transform: uppercase;
+      color: var(--accent); font-weight: 700; margin-bottom: 12px;
+    }
+    .app-header h1 {
+      font-family: var(--serif); font-size: 33px; line-height: 1.14;
+      font-weight: 800; margin: 0 0 10px; letter-spacing: .01em;
+    }
+    .sub { color: var(--muted); font-size: 14px; line-height: 1.75; max-width: 46ch; }
+    .library-count {
+      flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px;
+      padding: 5px 13px; color: var(--ink-2); background: var(--surface);
+      font-size: 12px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
+    }
+
+    /* 导航：编辑部式下划线标签 */
+    .nav-tabs {
+      position: sticky; top: 0; z-index: 30;
+      display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+      margin: 0 -22px; padding: 0 22px;
+      background: rgba(244,243,237,.93); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-tabs::-webkit-scrollbar { display: none; }
+    .nav-tab {
+      flex: 0 0 auto; border: 0; border-bottom: 2px solid transparent;
+      padding: 14px 3px 11px; margin: 0 12px; background: none;
+      color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: color .15s, border-color .15s; letter-spacing: .01em;
+    }
+    .nav-tab:first-child { margin-left: 0; }
+    .nav-tab:hover { color: var(--ink); }
+    .nav-tab.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 700; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 22px 20px; margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 14px; font-weight: 700; letter-spacing: .01em;
+      display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--ink);
+    }
+    .section-title::before { content: ''; width: 3px; height: 15px; background: var(--accent); flex: 0 0 auto; }
+
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 7px; letter-spacing: .02em; }
+    input[type=text], textarea, input[type=search] {
+      width: 100%; border: 1px solid var(--line-2); border-radius: 4px;
+      padding: 11px 13px; font-size: 14px; font-family: inherit; color: var(--ink);
+      background: #fff; outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(179,58,40,.12); }
+    .btn {
+      width: 100%; margin-top: 12px; border: none; background: var(--accent); color: #fff;
+      border-radius: 4px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: background .15s, opacity .15s; letter-spacing: .02em;
+    }
+    .btn:hover { background: var(--accent-deep); }
+    .btn:disabled { opacity: .45; cursor: default; background: var(--accent); }
+    .btn.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--line-2); }
+    .btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
+    .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .btn.danger:hover { background: var(--danger-soft); }
+
+    .error { color: var(--danger); background: var(--danger-soft); border: 1px solid #E3C3BD;
+      border-radius: var(--radius); padding: 12px 15px; font-size: 13px; margin-top: 12px; display: none; }
+    .error.show { display: block; }
+    .loading { text-align: center; color: var(--muted); padding: 20px 0; display: none; font-size: 13px; }
+    .loading.show { display: block; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--line);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite;
+      vertical-align: -3px; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 节目目录 */
+    .episode-strip { display: flex; flex-direction: column; gap: 10px; }
+    .ep-item {
+      display: flex; align-items: center; gap: 14px;
+      border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+      cursor: pointer; transition: border-color .15s, background .15s; background: var(--surface);
+    }
+    .ep-item:hover { border-color: var(--line-2); background: var(--surface-2); }
+    .ep-item.active { border-color: var(--accent); background: var(--accent-soft); }
+    .ep-thumb { width: 46px; height: 46px; border-radius: 4px; object-fit: cover; flex-shrink: 0;
+      background: var(--surface-2); border: 1px solid var(--line); }
+    .ep-thumb--empty { display: flex; align-items: center; justify-content: center;
+      font-family: var(--serif); font-size: 20px; color: var(--muted); }
+    .ep-item-body { flex: 1; min-width: 0; }
+    .ep-title { font-weight: 700; font-size: 14.5px; line-height: 1.4; margin-bottom: 3px;
+      overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .ep-podcast { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .ep-meta-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ep-dur { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    .badges { display: inline-flex; gap: 5px; }
+    .badge { display: inline-block; font-size: 10.5px; border-radius: 3px; padding: 1px 7px;
+      background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); letter-spacing: .02em; }
+    .badge.ok { background: var(--green-soft); color: var(--green); border-color: transparent; }
+    .badge.err { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+    .badge.run { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
+
+    /* 节目详情 */
+    .ep-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+    .ep-cover { width: 88px; height: 88px; border-radius: 5px; object-fit: cover; flex-shrink: 0;
+      background: var(--surface-2); border: 1px solid var(--line); }
+    .ep-meta { flex: 1; min-width: 0; }
+    .ep-meta .t { font-family: var(--serif); font-weight: 800; font-size: 20px; line-height: 1.3; }
+    .ep-meta .p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    audio { width: 100%; margin-top: 4px; }
+    .status-line { font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+    .status-line .err-text { color: var(--danger); margin-top: 4px; }
+    .detail-actions { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
+    .detail-actions .btn { width: auto; margin: 0; padding-left: 8px; padding-right: 8px; font-size: 12.5px; }
+
+    /* 逐字稿：访谈录式排版，时间码留白栏 */
+    .mode-switch { display: flex; gap: 4px; padding: 4px; border-radius: 5px; background: var(--surface-2); margin: 14px 0 6px; }
+    .mode-switch button { flex: 1; border: 0; border-radius: 3px; padding: 8px; color: var(--muted);
+      background: transparent; font-weight: 700; font-size: 13px; cursor: pointer; transition: .15s; }
+    .mode-switch button.active { color: var(--ink); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .seg-wrap { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+    .seg-actions { position: absolute; inset: 0 auto 0 0; width: var(--action-w); display: flex; align-items: stretch; z-index: 1; }
+    .seg-actions button { flex: 1; border: 0; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .seg-actions .key-action { background: var(--accent); }
+    .seg-actions .original-action { background: var(--blue); }
+    .seg-actions button.on { box-shadow: inset 0 0 0 3px rgba(255,255,255,.5); }
+    .seg { position: relative; z-index: 2; background: var(--surface); padding: 13px 4px; cursor: pointer; transition: transform .18s ease, background .15s; }
+    .seg-wrap.actions-open .seg { transform: translateX(var(--action-w)); }
+    .seg:hover { background: var(--surface-2); }
+    .seg-row { display: flex; gap: 14px; align-items: baseline; }
+    .seg .t { flex: 0 0 auto; min-width: 48px; color: var(--accent); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    .seg-body { flex: 1; min-width: 0; }
+    .seg .s { color: var(--ink-2); font-size: 12px; font-weight: 700; margin-right: 8px; }
+    .seg .txt { font-size: 15px; line-height: 1.75; }
+    .seg.key { border-left: 3px solid var(--accent); padding-left: 12px; background: var(--accent-soft); }
+    .seg.quote-source { background: var(--blue-soft); }
+    .seg-note { display: none; margin-top: 10px; }
+    .note-mode .seg-note { display: block; }
+    .seg-note-view { color: var(--blue); white-space: pre-wrap; font-size: 13.5px; line-height: 1.7; padding-left: 12px; border-left: 2px solid var(--blue); }
+    .seg-note textarea { color: var(--blue); background: var(--blue-soft); border-color: var(--line-2); min-height: 76px; resize: vertical; }
+    .seg-tools { display: none; gap: 6px; margin-top: 8px; }
+    .note-mode .seg-tools { display: flex; }
+    .seg-tools button { border: 1px solid var(--line-2); border-radius: 4px; padding: 5px 10px; color: var(--ink-2); background: #fff; font-size: 11.5px; cursor: pointer; }
+    .seg-tools button:hover { background: var(--surface-2); }
+    .swipe-hint { color: var(--muted); font-size: 11.5px; margin: 6px 0 10px; line-height: 1.6; }
+    .generate-note { margin-top: 14px; }
+    .transcript-scroll { max-height: 60vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+    #transcriptCard { position: relative; }
+    /* 一键全复制悬浮小按钮 */
+    .fab-copy {
+      position: absolute; right: 14px; bottom: 62px; z-index: 6;
+      display: inline-flex; align-items: center; gap: 5px;
+      border: 1px solid var(--line-2); border-radius: 999px;
+      padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer;
+      color: var(--accent); background: var(--surface);
+      box-shadow: 0 2px 10px rgba(0,0,0,.14); transition: background .15s, color .15s, opacity .15s;
+    }
+    .fab-copy:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .fab-copy:disabled { opacity: .4; cursor: default; box-shadow: none; }
+    .fab-copy.done { color: var(--green); border-color: var(--green); background: var(--surface); }
+    .fab-copy.done:hover { background: var(--surface); color: var(--green); }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+    /* 导读 · 大纲 */
+    .out-summary { font-size: 14.5px; line-height: 1.8; margin-bottom: 20px; color: var(--ink-2); }
+    .out-block { margin-bottom: 24px; }
+    .out-block .h { font-family: var(--serif); font-weight: 800; font-size: 16px; margin-bottom: 12px;
+      padding-bottom: 7px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+    .out-block .h::before { content: ''; width: 3px; height: 16px; background: var(--accent); }
+    .out-block .d { font-size: 13.5px; line-height: 1.75; color: var(--ink-2); margin-bottom: 8px; }
+    .out-block .d b { color: var(--ink); font-weight: 700; }
+    .play-chip { display: inline-block; margin-top: 4px; margin-right: 6px; margin-bottom: 4px;
+      border: 1px solid var(--line-2); color: var(--accent); background: var(--surface);
+      border-radius: 999px; padding: 2px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: .15s; }
+    .play-chip:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .quote { border-left: 3px solid var(--accent); background: var(--surface);
+      border-radius: 0 5px 5px 0; padding: 16px 18px; margin-bottom: 14px; }
+    .quote .q { font-family: var(--serif); font-size: 17px; line-height: 1.7; font-weight: 700; color: var(--ink); }
+    .quote .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+    /* 伴读 · 对话：编辑按语式，非聊天气泡 */
+    .chat-box { max-height: 55vh; overflow-y: auto; min-height: 80px; padding-right: 2px; }
+    .chat-msg { margin-bottom: 20px; }
+    .chat-msg .who { font-size: 11px; letter-spacing: .12em; color: var(--muted); margin-bottom: 6px; font-weight: 700; }
+    .chat-msg .bubble { background: var(--surface); border: 1px solid var(--line);
+      border-left: 3px solid var(--accent); border-radius: 0 5px 5px 0; padding: 13px 16px; font-size: 14.5px;
+      line-height: 1.75; white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+    .chat-msg.me { max-width: 88%; margin-left: auto; }
+    .chat-msg.me .who { text-align: right; color: var(--blue); }
+    .chat-msg.me .bubble { background: var(--blue-soft); border: 1px solid var(--line);
+      border-left: 0; border-right: 3px solid var(--blue); border-radius: 5px 0 0 5px; color: var(--ink-2); display: block; text-align: left; }
+    .loc-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 14px; margin-top: 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface-2); }
+    .loc-card .lc-text { font-size: 13px; color: var(--ink-2); min-width: 0; line-height: 1.6; }
+    .loc-card .lc-time { color: var(--accent); font-weight: 700; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .loc-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .loc-card button { border: none; background: var(--accent); color: #fff; border-radius: 4px;
+      padding: 7px 12px; font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+    .loc-card button:hover { background: var(--accent-deep); }
+    .loc-card button.article-action { border: 1px solid var(--accent); background: var(--surface); color: var(--accent); }
+    .loc-card button:disabled { opacity: .55; cursor: default; }
+    .article-card { margin: 12px 0 16px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .article-card .article-title { margin-bottom: 10px; font-family: var(--serif); font-size: 18px; font-weight: 800; }
+    .article-card .article-body { color: var(--ink-2); font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+    .article-card .article-meta { margin-top: 10px; color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .article-card .article-tools { display: flex; gap: 8px; margin-top: 12px; }
+    .article-card .article-tools button { border: 1px solid var(--line-2); border-radius: 4px; background: var(--surface); color: var(--ink-2); padding: 6px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+    .article-card .article-tools button:hover { background: var(--surface-2); }
+    .chat-input-row { display: flex; gap: 8px; margin-top: 14px; }
+    .chat-input-row textarea { flex: 1; resize: none; height: 46px; padding: 12px 13px; }
+    .chat-input-row button { border: none; background: var(--accent); color: #fff; border-radius: 4px;
+      padding: 0 20px; font-weight: 700; cursor: pointer; flex-shrink: 0; font-size: 14px; }
+    .chat-input-row button:hover { background: var(--accent-deep); }
+    .chat-input-row button:disabled { opacity: .5; }
+
+    /* 连续笔记：AI 段落与读者标注自然穿插 */
+    .note-editor { display: none; position: relative; }
+    .note-editor.show { display: block; }
+    .note-editor input { width: 100%; border: 1px solid var(--line-2); border-radius: 4px; padding: 12px 13px;
+      font-family: var(--serif); font-weight: 800; font-size: 20px; background: #fff; }
+    .note-document { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 20px;
+      background: var(--surface); min-height: 280px; }
+    .note-block { padding: 6px 2px; white-space: pre-wrap; word-break: break-word; outline: none;
+      font-size: 15px; line-height: 1.8; }
+    .note-block:focus { background: var(--surface-2); box-shadow: 0 0 0 2px rgba(179,58,40,.12); }
+    .note-block.ai { font-family: var(--serif); }
+    .note-block.annotation { margin: 12px 0; padding: 12px 14px; color: var(--blue); background: var(--blue-soft);
+      border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; font-family: var(--sans); font-size: 13.5px; }
+    .share-row { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; color: var(--ink-2); font-size: 13px; }
+    .share-row input { accent-color: var(--accent); }
+    .note-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .note-actions .btn { width: auto; margin-top: 10px; padding: 10px 6px; font-size: 12.5px; }
+    .note-library-item { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 10px; cursor: pointer; transition: .15s; background: var(--surface); }
+    .note-library-item:hover { border-color: var(--line-2); background: var(--surface-2); }
+    .note-library-item .title { font-family: var(--serif); font-weight: 800; font-size: 15px; }
+    .note-library-item .meta { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
+
+    /* 布局辅助 */
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .section-head .section-title { margin: 0; }
+    .inline-row { display: flex; gap: 8px; align-items: center; }
+    .inline-row input { flex: 1; min-width: 0; }
+    .inline-row .btn { width: auto; min-width: 104px; margin-top: 0; }
+    .search-wrap { position: relative; margin-bottom: 12px; }
+    .search-wrap input { padding-left: 36px; }
+    .search-wrap::before { content: '⌕'; position: absolute; left: 13px; top: 50%; transform: translateY(-50%); z-index: 1; color: var(--muted); font-size: 20px; line-height: 1; }
+    .copy-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+    .copy-tools .btn { width: auto; margin: 0; padding: 7px 11px; font-size: 12px; }
+    .copy-status { color: var(--accent); font-size: 11.5px; white-space: nowrap; }
+    .empty-panel { padding: 40px 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .view-panel { display: none; }
+    .view-panel.active { display: block; animation: panel-in .22s ease; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(4px); } }
+
+    @media (max-width: 520px) {
+      .app { padding-left: 16px; padding-right: 16px; }
+      .nav-tabs { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+      .app-header { padding: 26px 0 20px; }
+      .app-header h1 { font-size: 27px; }
+      .ep-cover { width: 72px; height: 72px; }
+      .detail-actions { grid-template-columns: 1fr 1fr; }
+      .quote .q { font-size: 16px; }
+    }
+    @media (max-width: 380px) {
+      .app-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .inline-row { align-items: stretch; flex-direction: column; }
+      .inline-row .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="masthead">
+      <div class="masthead-eyebrow">小宇宙 · 播客伴读</div>
+      <h1>把节目，读成一本笔记</h1>
+      <div class="sub">自动转写逐字稿，标出金句与重点，生成一份可以扫读、收藏、分享的伴读笔记。</div>
+    </div>
+    <div class="library-count" id="libraryCount">已收录 0 期</div>
+  </header>
+
+  <nav class="nav-tabs" aria-label="播客功能导航">
+    <button class="nav-tab active" data-view="library">节目库</button>
+    <button class="nav-tab" data-view="detail">详情</button>
+    <button class="nav-tab" data-view="outline">导读</button>
+    <button class="nav-tab" data-view="transcript">逐字稿</button>
+    <button class="nav-tab" data-view="chat">伴读</button>
+    <button class="nav-tab" data-view="notes">笔记</button>
+  </nav>
+  <div class="error" id="error" role="alert"></div>
+
+  <!-- 添加节目 -->
+  <section class="view-panel active" id="view-library">
+    <div class="card">
+      <div class="section-title">添加节目</div>
+      <div class="inline-row"><input type="text" id="urlInput" aria-label="小宇宙链接" placeholder="粘贴小宇宙 episode 链接" autocomplete="off"><button class="btn" id="addBtn">添加节目</button></div>
+      <div class="inline-row" style="margin-top:8px;flex-wrap:wrap;gap:8px;">
+        <input type="file" id="fileInput" accept="audio/*" aria-label="本地音频文件">
+        <input type="text" id="titleInput" aria-label="节目标题" placeholder="节目标题（可选）" autocomplete="off">
+        <input type="text" id="podInput" aria-label="播客名" placeholder="播客名（可选）" autocomplete="off">
+        <button class="btn" id="uploadBtn">上传本地音频</button>
+      </div>
+      <div class="hint">上传本地音频（mp3 / m4a / wav …）会存入本机 <code>data/uploads</code>，绕过小宇宙解析，可直接转写；演示模式下转写为规则占位稿，接真实 key 才会转你上传的音频。</div>
+    </div>
+    <div class="loading" id="loading"><span class="spinner"></span>正在解析节目…</div>
+
+    <!-- 节目列表 -->
+    <div class="card" id="listCard">
+      <div class="section-head"><div class="section-title">节目目录</div><span class="hint" id="resultCount"></span></div>
+      <div class="search-wrap"><input type="search" id="podcastSearch" placeholder="搜索节目标题或播客名称" autocomplete="off"></div>
+      <div id="episodeList" class="episode-strip"><div class="hint">还没有节目，先在上面添加一个吧。</div></div>
+    </div>
+    <div class="card">
+      <div class="section-head"><div class="section-title">分享的笔记</div><button class="btn ghost" id="refreshNotesBtn" style="width:auto;margin:0;padding:7px 11px;font-size:12px;">刷新</button></div>
+      <div id="noteLibrary"><div class="empty-panel">还没有分享到这里的笔记</div></div>
+    </div>
+  </section>
+
+  <!-- 节目详情 -->
+  <section class="view-panel" id="view-detail">
+    <div id="detailEmpty" class="card empty-panel">请先在「节目库」选择一期节目</div>
+    <div id="detailSection" style="display:none;">
+      <div class="card">
+        <div class="ep-head">
+          <img class="ep-cover" id="epCover" alt="cover" src="">
+          <div class="ep-meta">
+            <div class="t" id="epTitle">—</div>
+            <div class="p" id="epPodcast"></div>
+            <div class="p" id="epDuration"></div>
+          </div>
+        </div>
+        <audio id="player" controls preload="none"></audio>
+        <div class="status-line" id="statusLine"></div>
+        <div class="detail-actions"><button class="btn" id="transcribeBtn">生成逐字稿</button><button class="btn" id="analyzeBtn">分析节目</button><button class="btn ghost" id="refreshBtn">刷新</button><button class="btn danger" id="delBtn">删除</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 导读 · 大纲 -->
+  <section class="view-panel" id="view-outline"><div class="card" id="outlineCard">
+    <div class="section-title">导读 · 大纲</div>
+    <div id="outlineContent"><div class="empty-panel">选择节目并完成分析后查看</div></div>
+  </div></section>
+
+  <!-- 逐字稿 -->
+  <section class="view-panel" id="view-transcript"><div class="card" id="transcriptCard">
+    <div class="section-head"><div><div class="section-title">逐字稿</div><div class="hint" id="transcriptModeHint">伴听模式：点击句子跳转播放</div></div><div class="copy-tools"><span class="copy-status" id="copyStatus" aria-live="polite"></span><button class="btn ghost" id="copyBtn" disabled>复制全文</button><button class="btn ghost" id="exportBtn" disabled>导出文稿</button></div></div>
+    <div class="mode-switch" role="group" aria-label="逐字稿模式"><button class="active" id="listenModeBtn">伴听模式</button><button id="noteModeBtn">笔记模式</button></div>
+    <div class="swipe-hint" id="swipeHint" style="display:none;">右滑任意段落，标记「重点」或「原文」；蓝色文字是你的主观标注，AI 不会读取。</div>
+    <div class="transcript-scroll" id="transcriptContent"><div class="empty-panel">选择已转写的节目后查看</div></div>
+    <button class="fab-copy" id="copyAllTranscriptBtn" disabled title="一键复制整篇逐字稿">⧉ 全复制</button>
+    <button class="btn generate-note" id="generateNoteBtn" disabled>生成笔记</button>
+  </div></section>
+
+  <!-- 伴读 · 对话 -->
+  <section class="view-panel" id="view-chat"><div class="card">
+    <div class="section-title">伴读 · 对话</div>
+    <div class="chat-box" id="chatMessages">
+      <div class="hint">可以定位节目片段，也可以继续探讨节目内容。</div>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" placeholder="想问节目点什么…"></textarea>
+      <button id="chatSend">发送</button>
+    </div>
+  </div></section>
+
+  <!-- 连续笔记编辑器 -->
+  <section class="view-panel" id="view-notes">
+    <div class="card note-editor" id="noteEditor">
+      <div class="section-title">生成笔记</div>
+      <input id="noteTitle" type="text" aria-label="笔记标题" placeholder="笔记标题">
+      <div class="hint" style="margin-top:10px;">AI 会理解整期内容，并把你的标注和思考自然整理成一篇较短的小笔记；正文可以直接编辑。</div>
+      <div class="note-document" id="noteDocument" aria-label="笔记正文"></div>
+      <label class="share-row"><input id="shareNote" type="checkbox"> 保存后分享到笔记区</label>
+      <div class="note-actions"><button class="btn" id="saveNoteBtn">保存</button><button class="btn ghost" id="exportNoteBtn">导出文档</button><button class="btn danger" id="deleteNoteBtn">删除</button></div>
+      <button class="fab-copy" id="copyAllNoteBtn" disabled title="一键复制整篇笔记">⧉ 全复制</button>
+    </div>
+    <div class="card empty-panel" id="noteEmpty">请先从逐字稿生成笔记，或在节目库打开一篇分享笔记。</div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const urlInput = $('urlInput'), addBtn = $('addBtn'), loading = $('loading'), error = $('error');
+const episodeList = $('episodeList'), detailSection = $('detailSection');
+const player = $('player');
+let currentEpisodeId = null;
+let chatSessionId = null;
+let pollTimer = null;
+let searchTimer = null;
+let listRequestId = 0;
+let currentEpisodeTitle = '';
+let currentPodcastName = '';
+let currentTranscriptSegments = [];
+let transcriptMode = 'listen';
+let currentNoteId = null;
+const API = '/api/podcasts';
+
+// 匿名全埋点：不采集账号、IP、输入值、搜索词或逐字稿文本。
+const analytics = { track(){}, flush(){} };
+
+function esc(s) { return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtTime(ms) { const s = Math.max(0, Math.floor((ms||0)/1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+function showError(msg) { error.textContent = msg; error.className = 'error show'; }
+function hideError() { error.className = 'error'; }
+
+const STATUS_LABEL = { pending:'待处理', processing:'处理中', completed:'已完成', failed:'失败' };
+function badge(status) {
+  if (!status) return '';
+  const cls = status==='completed' ? 'ok' : status==='failed' ? 'err' : status==='processing' ? 'run' : '';
+  return `<span class="badge ${cls}">${STATUS_LABEL[status]||status}</span>`;
+}
+
+function switchView(name) {
+  document.querySelectorAll('.view-panel').forEach(panel => panel.classList.toggle('active', panel.id === `view-${name}`));
+  document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  analytics.track('view_change', { target:name });
+  if (name === 'library') loadNoteLibrary();
+}
+document.querySelectorAll('.nav-tab').forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
+
+// ---- 节目列表 ----
+async function loadEpisodes(keepSelection) {
+  const requestId = ++listRequestId;
+  const query = $('podcastSearch').value.trim();
+  const r = await fetch(`${API}?q=${encodeURIComponent(query)}&limit=50`);
+  const j = await r.json();
+  if (requestId !== listRequestId) return;
+  const eps = j.episodes || [];
+  $('libraryCount').textContent = `已收录 ${eps.length} 期`;
+  $('resultCount').textContent = query ? `${eps.length} 个结果` : `${eps.length} 期`;
+  episodeList.innerHTML = '';
+  if (!eps.length) {
+    episodeList.innerHTML = `<div class="empty-panel">${query ? '没有找到匹配的节目' : '还没有节目，先在上面添加一个吧。'}</div>`;
+    if (!keepSelection) { detailSection.style.display = 'none'; $('detailEmpty').style.display = 'block'; currentEpisodeId = null; }
+    return;
+  }
+  for (const ep of eps) {
+    const div = document.createElement('div');
+    div.className = 'ep-item' + (ep.id === currentEpisodeId ? ' active' : '');
+    const cover = ep.cover_url
+      ? `<img class="ep-thumb" src="${esc(ep.cover_url)}" alt="" loading="lazy">`
+      : `<div class="ep-thumb ep-thumb--empty" aria-hidden="true">${esc((ep.title||ep.podcast||'播')[0])}</div>`;
+    const dur = ep.duration_ms ? `<span class="ep-dur">${fmtTime(ep.duration_ms)}</span>` : '';
+    div.innerHTML = `${cover}
+      <div class="ep-item-body">
+        <div class="ep-title">${esc(ep.title||'（无标题）')}</div>
+        <div class="ep-podcast">${esc(ep.podcast||'')}</div>
+        <div class="ep-meta-line">${dur}<div class="badges">${badge(ep.transcript_status)}${badge(ep.analysis_status)}</div></div>
+      </div>`;
+    div.onclick = () => selectEpisode(ep.id);
+    episodeList.appendChild(div);
+  }
+}
+$('podcastSearch').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    analytics.track('episode_search', { target:'podcastSearch', properties:{query_length:$('podcastSearch').value.trim().length} });
+    loadEpisodes(true);
+  }, 250);
+});
+
+// ---- 选择节目 ----
+async function selectEpisode(id) {
+  analytics.track('episode_select', { target:'episode_card', episodeId:id });
+  currentEpisodeId = id;
+  chatSessionId = null;   // 切换节目时开新对话
+  currentNoteId = null;
+  $('copyAllNoteBtn').disabled = true;
+  $('noteEditor').classList.remove('show');
+  $('noteEmpty').style.display = 'block';
+  clearInterval(pollTimer);
+  $('chatMessages').innerHTML = '<div class="hint">可以定位节目片段，也可以继续探讨节目内容。</div>';
+  const r = await fetch(`${API}/${id}`);
+  if (!r.ok) { showError('加载节目失败'); return; }
+  const j = await r.json();
+  const ep = j.episode;
+  currentEpisodeTitle = ep.title || '无标题节目';
+  currentPodcastName = ep.podcast || '';
+  $('epCover').src = ep.cover_url || '';
+  $('epTitle').textContent = ep.title || '（无标题）';
+  $('epPodcast').textContent = ep.podcast || '';
+  $('epDuration').textContent = ep.duration_ms ? '时长 ' + fmtTime(ep.duration_ms) : '';
+  player.src = ep.audio_url;
+  $('detailEmpty').style.display = 'none';
+  detailSection.style.display = 'block';
+  loadEpisodes(true);
+  renderStatus(ep);
+  // 已有结果直接展示
+  if (j.analysis) renderOutline(j.analysis);
+  if (ep.transcript_status === 'completed') loadTranscript();
+  else { currentTranscriptSegments = []; $('copyBtn').disabled = true; $('exportBtn').disabled = true; $('generateNoteBtn').disabled = true; $('copyAllTranscriptBtn').disabled = true; $('transcriptContent').innerHTML = '<div class="empty-panel">这期节目还没有逐字稿</div>'; }
+  switchView(ep.transcript_status === 'completed' ? 'chat' : 'detail');
+}
+
+function renderStatus(ep) {
+  const line = $('statusLine');
+  let html = `转写：${badge(ep.transcript_status)}  分析：${badge(ep.analysis_status)}`;
+  if (ep.error_message) html += `<div class="err-text">⚠️ ${esc(ep.error_message)}</div>`;
+  line.innerHTML = html;
+  const transcribing = ep.transcript_status === 'processing';
+  const analyzing = ep.analysis_status === 'processing';
+  $('transcribeBtn').disabled = transcribing || analyzing || ep.transcript_status === 'completed';
+  $('transcribeBtn').textContent = transcribing ? '转写中…' : (ep.transcript_status === 'completed' ? '逐字稿 V1 已锁定' : '生成逐字稿');
+  $('analyzeBtn').disabled = ep.transcript_status !== 'completed' || transcribing || analyzing;
+  $('analyzeBtn').textContent = analyzing ? '分析中…' : (ep.analysis_status === 'completed' ? '重新分析' : '分析节目');
+}
+
+// ---- 添加节目 ----
+addBtn.onclick = async () => {
+  const url = urlInput.value.trim();
+  if (!url) { showError('请输入链接'); return; }
+  hideError(); loading.className = 'loading show'; addBtn.disabled = true;
+  analytics.track('episode_add_start', { target:'addBtn', properties:{has_url:true} });
+  try {
+    const r = await fetch(API, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_url: url })
+    });
+    const j = await r.json();
+    if (!r.ok) { showError(j.error || '解析失败'); return; }
+    urlInput.value = '';
+    await loadEpisodes();
+    await selectEpisode(j.episode.id);
+    analytics.track('episode_add_success', { target:'addBtn', episodeId:j.episode.id });
+  } catch (e) {
+    analytics.track('episode_add_failed', { target:'addBtn' });
+    showError('网络错误: ' + e.message);
+  } finally {
+    loading.className = 'loading'; addBtn.disabled = false;
+  }
+};
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+
+// ---- 上传本地音频 ----
+uploadBtn.onclick = async () => {
+  const f = fileInput.files[0];
+  if (!f) { showError('请先选择一个音频文件'); return; }
+  hideError(); loading.className = 'loading show'; uploadBtn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('file', f);
+    if (titleInput.value.trim()) fd.append('title', titleInput.value.trim());
+    if (podInput.value.trim()) fd.append('podcast', podInput.value.trim());
+    const r = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { showError(j.error || '上传失败'); return; }
+    fileInput.value = ''; titleInput.value = ''; podInput.value = '';
+    await loadEpisodes();
+    await selectEpisode(j.episode.id);
+  } catch (e) {
+    showError('网络错误: ' + e.message);
+  } finally {
+    loading.className = 'loading'; uploadBtn.disabled = false;
+  }
+};
+
+// ---- 逐字稿与分析分开执行 ----
+async function startEpisodeJob(kind) {
+  if (!currentEpisodeId) return;
+  const isTranscript = kind === 'transcribe';
+  const buttonId = isTranscript ? 'transcribeBtn' : 'analyzeBtn';
+  hideError(); analytics.track(isTranscript ? 'transcribe_start' : 'analysis_start', { target:buttonId });
+  const r = await fetch(`${API}/${currentEpisodeId}/${kind}?background=1`, { method: 'POST' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    analytics.track(isTranscript ? 'transcribe_failed' : 'analysis_failed', { target:buttonId, properties:{status:r.status} });
+    showError(j.error || '启动失败'); return;
+  }
+  analytics.track(isTranscript ? 'transcribe_accepted' : 'analysis_accepted', { target:buttonId });
+  renderStatus({ ...(await (await fetch(`${API}/${currentEpisodeId}`)).json()).episode });
+  pollStatus();
+}
+$('transcribeBtn').onclick = () => startEpisodeJob('transcribe');
+$('analyzeBtn').onclick = () => startEpisodeJob('analyze');
+
+function pollStatus() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!currentEpisodeId) { clearInterval(pollTimer); return; }
+    const j = await (await fetch(`${API}/${currentEpisodeId}`)).json();
+    const ep = j.episode;
+    renderStatus(ep);
+    loadEpisodes(true);
+    if (ep.transcript_status !== 'processing' && ep.analysis_status !== 'processing') {
+      clearInterval(pollTimer);
+      if (ep.transcript_status === 'completed') loadTranscript();
+      if (j.analysis) renderOutline(j.analysis);
+    }
+  }, 4000);
+}
+
+$('refreshBtn').onclick = async () => {
+  if (!currentEpisodeId) return;
+  analytics.track('status_refresh', { target:'refreshBtn' });
+  const j = await (await fetch(`${API}/${currentEpisodeId}`)).json();
+  renderStatus(j.episode);
+  if (j.analysis) renderOutline(j.analysis);
+  if (j.episode.transcript_status === 'completed') loadTranscript();
+};
+
+// ---- 逐字稿 ----
+async function loadTranscript() {
+  const r = await fetch(`${API}/${currentEpisodeId}/transcript`);
+  const j = await r.json();
+  const segs = j.segments || [];
+  currentTranscriptSegments = segs;
+  const box = $('transcriptContent');
+  box.innerHTML = '';
+  $('copyBtn').disabled = !segs.length;
+  $('exportBtn').disabled = !segs.length;
+  $('generateNoteBtn').disabled = !segs.length;
+  $('copyAllTranscriptBtn').disabled = !segs.length;
+  if (!segs.length) { box.innerHTML = '<div class="empty-panel">暂无逐字稿。</div>'; return; }
+  for (const s of segs) {
+    const wrap = document.createElement('div');
+    wrap.className = 'seg-wrap';
+    wrap.dataset.segmentId = s.id;
+    const actions = document.createElement('div');
+    actions.className = 'seg-actions';
+    actions.innerHTML = `<button class="key-action ${s.is_key ? 'on' : ''}">重点</button><button class="original-action ${s.include_original ? 'on' : ''}">原文</button>`;
+    const div = document.createElement('div');
+    div.className = `seg${s.is_key ? ' key' : ''}${s.include_original ? ' quote-source' : ''}`;
+    div.innerHTML = `<div class="seg-row"><span class="t">${fmtTime(s.start_ms)}</span>` +
+      `<div class="seg-body">` +
+      (s.speaker ? `<span class="s">${esc(s.speaker)}</span>` : '') +
+      `<span class="txt">${esc(s.text)}</span></div></div>` +
+      `<div class="seg-note"><div class="seg-note-view">${esc(s.note_text||'')}</div></div>` +
+      `<div class="seg-tools"><button class="edit-action">编辑</button><button class="copy-segment-action">复制原文</button></div>`;
+    div.onclick = event => {
+      if (event.target.closest('button,textarea')) return;
+      if (transcriptMode === 'listen') seek(s.start_ms);
+      else wrap.classList.remove('actions-open');
+    };
+    actions.querySelector('.key-action').onclick = () => updateAnnotation(s, {is_key:!Boolean(s.is_key)});
+    actions.querySelector('.original-action').onclick = () => updateAnnotation(s, {include_original:!Boolean(s.include_original)});
+    div.querySelector('.edit-action').onclick = () => editSegmentNote(s, div);
+    div.querySelector('.copy-segment-action').onclick = async event => {
+      await writeClipboard(s.text); event.currentTarget.textContent = '已复制'; setTimeout(() => event.currentTarget.textContent='复制原文', 1000);
+    };
+    let touchX = null;
+    div.addEventListener('touchstart', event => { touchX = event.touches[0].clientX; }, {passive:true});
+    div.addEventListener('touchend', event => {
+      if (transcriptMode !== 'note' || touchX === null) return;
+      const dx = event.changedTouches[0].clientX - touchX;
+      if (dx > 45) wrap.classList.add('actions-open');
+      if (dx < -35) wrap.classList.remove('actions-open');
+      touchX = null;
+    }, {passive:true});
+    wrap.append(actions, div); box.appendChild(wrap);
+  }
+}
+
+function setTranscriptMode(mode) {
+  transcriptMode = mode;
+  $('listenModeBtn').classList.toggle('active', mode === 'listen');
+  $('noteModeBtn').classList.toggle('active', mode === 'note');
+  $('transcriptContent').classList.toggle('note-mode', mode === 'note');
+  $('swipeHint').style.display = mode === 'note' ? 'block' : 'none';
+  $('transcriptModeHint').textContent = mode === 'listen' ? '伴听模式：点击句子跳转播放' : '笔记模式：点击不跳转，右滑标记，编辑蓝色主观笔记';
+  document.querySelectorAll('.seg-wrap').forEach(node => node.classList.remove('actions-open'));
+  analytics.track('transcript_mode_change', {target:mode});
+}
+$('listenModeBtn').onclick = () => setTranscriptMode('listen');
+$('noteModeBtn').onclick = () => setTranscriptMode('note');
+
+async function updateAnnotation(segment, changes) {
+  const payload = {
+    is_key:Boolean(changes.is_key ?? segment.is_key),
+    include_original:Boolean(changes.include_original ?? segment.include_original),
+    note_text:changes.note_text ?? segment.note_text ?? '',
+  };
+  const response = await fetch(`${API}/${currentEpisodeId}/transcript/annotations/${segment.id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || '保存标注失败');
+  Object.assign(segment, data.annotation);
+  analytics.track('transcript_annotation_save', {target:'segment', properties:{is_key:payload.is_key,include_original:payload.include_original}});
+  await loadTranscript(); setTranscriptMode('note');
+}
+
+function editSegmentNote(segment, segmentNode) {
+  const zone = segmentNode.querySelector('.seg-note');
+  zone.innerHTML = `<textarea aria-label="主观标注"></textarea><div class="seg-tools"><button class="save-inline-note">保存标注</button><button class="cancel-inline-note">取消</button></div>`;
+  const textarea = zone.querySelector('textarea'); textarea.value = segment.note_text || ''; textarea.focus();
+  zone.querySelector('.save-inline-note').onclick = async () => {
+    try { await updateAnnotation(segment, {note_text:textarea.value}); }
+    catch (error) { showError(error.message); }
+  };
+  zone.querySelector('.cancel-inline-note').onclick = () => loadTranscript();
+}
+
+async function copyTranscript() {
+  if (!currentEpisodeId) return;
+  const button = $('copyBtn');
+  button.disabled = true; $('copyStatus').textContent = '复制中';
+  try {
+    const response = await fetch(`${API}/${currentEpisodeId}/transcript?format=text`, { credentials: 'same-origin', headers: { Accept: 'text/plain' } });
+    if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || '获取逐字稿失败'); }
+    const text = await response.text();
+    if (!text.trim()) throw new Error('逐字稿为空');
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+    else {
+      const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select(); const copied = document.execCommand('copy'); area.remove();
+      if (!copied) throw new Error('浏览器未允许复制');
+    }
+    $('copyStatus').textContent = '已复制';
+    analytics.track('transcript_copy_success', { target:'copyBtn', properties:{segment_count:$('transcriptContent').children.length} });
+    setTimeout(() => { $('copyStatus').textContent = ''; }, 1800);
+  } catch (e) { $('copyStatus').textContent = ''; analytics.track('transcript_copy_failed', { target:'copyBtn' }); showError(e.message); }
+  finally { button.disabled = false; }
+}
+$('copyBtn').onclick = copyTranscript;
+
+async function exportTranscript() {
+  if (!currentEpisodeId) return;
+  const button = $('exportBtn');
+  button.disabled = true; $('copyStatus').textContent = '导出中';
+  try {
+    if (!currentTranscriptSegments.length) throw new Error('逐字稿为空');
+    const transcript = currentTranscriptSegments.map(segment => {
+      const speaker = segment.speaker ? ` ${segment.speaker}` : '';
+      return `[${fmtTime(segment.start_ms)}]${speaker} ${segment.text}`;
+    }).join('\n');
+    const header = `${currentEpisodeTitle}\n${currentPodcastName ? currentPodcastName + '\n' : ''}\n`;
+    const content = `${header}${transcript}\n`;
+    const blob = new Blob(['\ufeff', content], { type:'text/plain;charset=utf-8' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeTitle = currentEpisodeTitle.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || '播客逐字稿';
+    link.href = href; link.download = `${safeTitle}-逐字稿.txt`; link.style.display = 'none';
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+    $('copyStatus').textContent = '已导出';
+    analytics.track('transcript_export_success', { target:'exportBtn', properties:{segment_count:$('transcriptContent').children.length} });
+    setTimeout(() => { $('copyStatus').textContent = ''; }, 1800);
+  } catch (e) {
+    $('copyStatus').textContent = ''; analytics.track('transcript_export_failed', { target:'exportBtn' }); showError(e.message);
+  } finally { button.disabled = false; }
+}
+    $('exportBtn').onclick = exportTranscript;
+
+// ---- 一键全复制（悬浮小按钮）----
+async function copyAllText(text, btn, okText) {
+  if (!text || !text.trim()) { showError('内容为空，无可复制'); return; }
+  const old = btn.textContent;
+  btn.disabled = true;
+  try {
+    await writeClipboard(text);
+    btn.textContent = okText || '已复制';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1500);
+  } catch (e) {
+    showError(e.message); btn.textContent = old;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('copyAllTranscriptBtn').onclick = async function () {
+  if (!currentEpisodeId) return;
+  const btn = this; btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/${currentEpisodeId}/transcript?format=text`, { credentials: 'same-origin', headers: { Accept: 'text/plain' } });
+    if (!r.ok) throw new Error('获取逐字稿失败');
+    const text = await r.text();
+    if (!text.trim()) throw new Error('逐字稿为空');
+    await copyAllText(text, btn, '已复制');
+  } catch (e) { showError(e.message); btn.disabled = false; }
+};
+
+$('copyAllNoteBtn').onclick = async function () {
+  const btn = this;
+  const blocks = collectNoteDocument();
+  await copyAllText(blocks.map(b => b.text).join('\n\n'), btn, '已复制');
+};
+
+// ---- 大纲 ----
+function renderOutline(a) {
+  const box = $('outlineContent');
+  if (!a) { box.innerHTML = '<div class="hint">还没有分析结果。</div>'; return; }
+  let html = '';
+  if (a.summary) html += `<div class="out-summary">${esc(a.summary)}</div>`;
+  const stages = (a.mainline && a.mainline.stages) || [];
+  if (stages.length) {
+    html += '<div class="out-block"><div class="h">主线脉络</div>';
+    for (const st of stages) {
+      html += `<div class="d"><b>${esc(st.title||'')}</b> ${esc(st.summary||'')}</div>` +
+        (st.start_ms != null ? `<span class="play-chip" onclick="seek(${st.start_ms})">▶ ${fmtTime(st.start_ms)} 从这里听</span>` : '');
+    }
+    html += '</div>';
+  }
+  const qs = a.major_questions || [];
+  if (qs.length) {
+    html += '<div class="out-block"><div class="h">主要问题</div>';
+    for (const q of qs) {
+      html += `<div class="d"><b>${esc(q.question||'')}</b> ${esc(q.discussion||'')} ${q.conclusion ? '→ ' + esc(q.conclusion) : ''}</div>` +
+        (q.start_ms != null ? `<span class="play-chip" onclick="seek(${q.start_ms})">▶ ${fmtTime(q.start_ms)} 从这里听</span>` : '');
+    }
+    html += '</div>';
+  }
+  const quotes = a.quotes || [];
+  if (quotes.length) {
+    html += '<div class="out-block"><div class="h">金句</div>';
+    for (const q of quotes) {
+      html += `<div class="quote"><div class="q">「${esc(q.text||'')}」</div>
+        <div class="meta">${esc(q.speaker||'')} · ${q.start_ms != null ? fmtTime(q.start_ms) : ''} ${esc(q.reason||'')}</div>` +
+        (q.start_ms != null ? `<span class="play-chip" onclick="seek(${q.start_ms})">▶ 从这里听</span>` : '') + '</div>';
+    }
+    html += '</div>';
+  }
+  box.innerHTML = html || '<div class="hint">还没有分析结果。</div>';
+}
+
+// ---- 播放定位 ----
+async function seek(startMs) {
+  try {
+    player.currentTime = Math.max(0, Number(startMs) / 1000);
+    analytics.track('audio_seek_from_content', { target:'content_timestamp', properties:{position_sec:Math.floor(Number(startMs)/1000)} });
+    await player.play(); switchView('detail');
+  } catch (e) { showError('播放失败: ' + e.message); }
+}
+
+// ---- 伴读对话 ----
+const chatMessages = $('chatMessages'), chatInput = $('chatInput'), chatSend = $('chatSend');
+function appendChat(role, text) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg' + (role === 'user' ? ' me' : '');
+  div.innerHTML = `<div class="who">${role === 'user' ? '我' : '伴读'}</div><div class="bubble">${esc(text)}</div>`;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+function appendLocation(loc) {
+  const div = document.createElement('div');
+  div.className = 'loc-card';
+  div.innerHTML = `<div class="lc-text"><span class="lc-time">${esc(loc.time_label||fmtTime(loc.start_ms))}</span> ${esc(loc.excerpt||'')}</div>
+    <div class="loc-actions"><button class="transcript-action">跳到逐字稿</button><button class="article-action">整理成文章</button></div>`;
+  div.querySelector('.transcript-action').onclick = () => viewTranscriptAt(loc.segment_id);
+  div.querySelector('.article-action').onclick = event => organizeArticle(loc, event.currentTarget);
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function viewTranscriptAt(segmentId) {
+  if (!currentTranscriptSegments.length) await loadTranscript();
+  switchView('transcript');
+  setTranscriptMode('listen');
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`.seg-wrap[data-segment-id="${Number(segmentId)}"]`);
+    if (target) { target.scrollIntoView({behavior:'smooth',block:'center'}); target.querySelector('.seg').classList.add('quote-source'); }
+  });
+  analytics.track('location_open_transcript', {target:'transcript_action'});
+}
+
+async function writeClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const area = document.createElement('textarea');
+  area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+  document.body.appendChild(area); area.select(); const copied = document.execCommand('copy'); area.remove();
+  if (!copied) throw new Error('浏览器未允许复制');
+}
+
+function appendArticle(article) {
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  card.innerHTML = `<div class="article-title">${esc(article.title||'整理文稿')}</div><div class="article-body">${esc(article.article||'')}</div>
+    <div class="article-meta">来源 ${fmtTime(article.start_ms)}–${fmtTime(article.end_ms)} · 仅做轻度结构整理</div>
+    <div class="article-tools"><button class="article-copy">复制文章</button><button class="article-export">导出文章</button></div>`;
+  const articleText = `${article.title||'整理文稿'}\n\n${article.article||''}\n`;
+  card.querySelector('.article-copy').onclick = async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try { await writeClipboard(articleText); button.textContent = '已复制'; analytics.track('article_copy_success', { target:'article_copy' }); }
+    catch (e) { showError(e.message); analytics.track('article_copy_failed', { target:'article_copy' }); }
+    finally { setTimeout(() => { button.disabled=false; button.textContent='复制文章'; }, 1400); }
+  };
+  card.querySelector('.article-export').onclick = () => {
+    const blob = new Blob(['\ufeff', articleText], { type:'text/plain;charset=utf-8' });
+    const href = URL.createObjectURL(blob); const link = document.createElement('a');
+    const safeTitle = String(article.title||'整理文稿').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').trim().slice(0,80) || '整理文稿';
+    link.href=href; link.download=`${safeTitle}.txt`; link.style.display='none'; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000); analytics.track('article_export_success', { target:'article_export' });
+  };
+  chatMessages.appendChild(card);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function organizeArticle(loc, button) {
+  if (!loc.segment_id || !currentEpisodeId) return;
+  const oldLabel = button.textContent; button.disabled = true; button.textContent = '整理中…';
+  analytics.track('article_organize_start', { target:'article_action' });
+  try {
+    const response = await fetch(`${API}/${currentEpisodeId}/article`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({segment_id:loc.segment_id})
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || '文章整理失败');
+    appendArticle(data.article);
+    analytics.track('article_organize_success', { target:'article_action', properties:{source_segment_count:(data.article.segment_ids||[]).length} });
+  } catch (e) {
+    showError(e.message); analytics.track('article_organize_failed', { target:'article_action' });
+  } finally { button.disabled=false; button.textContent=oldLabel; }
+}
+
+// ---- 连续笔记：彩色标注嵌入 AI 文章对应位置 ----
+function renderNoteDocument(documentBlocks) {
+  const box = $('noteDocument'); box.innerHTML = '';
+  (documentBlocks || []).forEach(block => {
+    const node = document.createElement('div');
+    node.className = `note-block ${block.type === 'annotation' ? 'annotation' : 'ai'}`;
+    node.dataset.type = block.type === 'annotation' ? 'annotation' : 'ai';
+    if (block.segment_id != null) node.dataset.segmentId = block.segment_id;
+    node.contentEditable = 'true';
+    node.spellcheck = true;
+    node.textContent = block.text || '';
+    box.appendChild(node);
+  });
+}
+
+function collectNoteDocument() {
+  return [...$('noteDocument').querySelectorAll('.note-block')].map(node => ({
+    type:node.dataset.type === 'annotation' ? 'annotation' : 'ai',
+    text:node.textContent || '',
+    ...(node.dataset.segmentId ? {segment_id:Number(node.dataset.segmentId)} : {}),
+  })).filter(block => block.text.trim());
+}
+
+function openNote(note) {
+  currentNoteId = note.id;
+  $('noteTitle').value = note.title || '播客笔记';
+  renderNoteDocument(note.document || []);
+  $('shareNote').checked = Boolean(note.is_shared);
+  $('noteEditor').classList.add('show');
+  $('copyAllNoteBtn').disabled = false;
+  $('noteEmpty').style.display = 'none';
+  switchView('notes');
+}
+
+async function generateNote() {
+  if (!currentEpisodeId) return;
+  const button = $('generateNoteBtn');
+  button.disabled = true; button.textContent = 'AI 正在整理…'; hideError();
+  analytics.track('note_generate_start', {target:'generateNoteBtn'});
+  try {
+    const response = await fetch(`${API}/${currentEpisodeId}/notes/generate`, {method:'POST'});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || '生成笔记失败');
+    openNote(data.note);
+    analytics.track('note_generate_success', {target:'generateNoteBtn',properties:{source_mode:data.note.source_mode}});
+  } catch (error) {
+    showError(error.message); analytics.track('note_generate_failed', {target:'generateNoteBtn'});
+  } finally {
+    button.disabled = false; button.textContent = '生成笔记';
+  }
+}
+$('generateNoteBtn').onclick = generateNote;
+
+async function saveCurrentNote() {
+  if (!currentNoteId) return false;
+  const response = await fetch(`/api/notes/${currentNoteId}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      title:$('noteTitle').value,
+      document:collectNoteDocument(),
+      is_shared:$('shareNote').checked,
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || '保存笔记失败');
+  analytics.track('note_save', {target:'saveNoteBtn',properties:{shared:$('shareNote').checked}});
+  await loadNoteLibrary();
+  return true;
+}
+
+$('saveNoteBtn').onclick = async event => {
+  const button = event.currentTarget; button.disabled=true;
+  try { await saveCurrentNote(); button.textContent='已保存'; }
+  catch (error) { showError(error.message); }
+  finally { setTimeout(() => { button.disabled=false; button.textContent='保存'; }, 1200); }
+};
+
+$('exportNoteBtn').onclick = async event => {
+  if (!currentNoteId) return;
+  const button = event.currentTarget; button.disabled=true;
+  try {
+    await saveCurrentNote();
+    const link = document.createElement('a');
+    link.href = `/api/notes/${currentNoteId}/export`; link.download = `podcast-note-${currentNoteId}.doc`;
+    document.body.appendChild(link); link.click(); link.remove();
+    analytics.track('note_export', {target:'exportNoteBtn'});
+  } catch (error) { showError(error.message); }
+  finally { button.disabled=false; }
+};
+
+$('deleteNoteBtn').onclick = async () => {
+  if (!currentNoteId || !confirm('删除后不会在笔记区展示，数据库会保留软删除记录。确定继续？')) return;
+  const response = await fetch(`/api/notes/${currentNoteId}`, {method:'DELETE'});
+  if (!response.ok) { const data=await response.json().catch(()=>({})); showError(data.error||'删除失败'); return; }
+  analytics.track('note_soft_delete', {target:'deleteNoteBtn'});
+  currentNoteId=null; $('noteEditor').classList.remove('show'); $('noteEmpty').style.display='block'; await loadNoteLibrary();
+};
+
+async function loadNoteLibrary() {
+  const response = await fetch('/api/notes?limit=50');
+  if (!response.ok) return;
+  const notes = (await response.json()).notes || [];
+  const box = $('noteLibrary'); box.innerHTML='';
+  if (!notes.length) { box.innerHTML='<div class="empty-panel">还没有分享到这里的笔记</div>'; return; }
+  notes.forEach(note => {
+    const item=document.createElement('div'); item.className='note-library-item';
+    item.innerHTML=`<div class="title">${esc(note.title)}</div><div class="meta">${esc(note.episode_title||'')} · ${note.source_mode==='full_episode'?'整期简要整理':'用户标注整合'}</div>`;
+    item.onclick=async()=>{ const data=await (await fetch(`/api/notes/${note.id}`)).json(); if(data.note) openNote(data.note); };
+    box.appendChild(item);
+  });
+}
+$('refreshNotesBtn').onclick = loadNoteLibrary;
+
+async function sendChat() {
+  const message = chatInput.value.trim();
+  if (!message || !currentEpisodeId) return;
+  appendChat('user', message);
+  analytics.track('chat_send', { target:'chatSend', properties:{message_length:message.length} });
+  chatInput.value = '';
+  chatSend.disabled = true;
+  try {
+    const r = await fetch(`${API}/${currentEpisodeId}/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, session_id: chatSessionId })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || '请求失败');
+    chatSessionId = j.session_id;
+    appendChat('assistant', j.answer || '（没有回答）');
+    (j.locations || []).forEach(appendLocation);
+    analytics.track('chat_response', { target:'chatMessages', properties:{location_count:(j.locations||[]).length} });
+  } catch (e) {
+    analytics.track('chat_failed', { target:'chatSend' });
+    appendChat('assistant', '出错了：' + e.message);
+  } finally {
+    chatSend.disabled = false;
+  }
+}
+chatSend.onclick = sendChat;
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+// ---- 删除 ----
+$('delBtn').onclick = async () => {
+  if (!currentEpisodeId) return;
+  if (!confirm('确定删除这个节目？逐字稿、分析和对话会一起删除。')) return;
+  analytics.track('episode_delete_confirmed', { target:'delBtn' });
+  const deletedEpisodeId = currentEpisodeId;
+  const r = await fetch(`${API}/${currentEpisodeId}`, { method: 'DELETE' });
+  if (!r.ok) { showError('删除失败'); return; }
+  currentEpisodeId = null; chatSessionId = null;
+  detailSection.style.display = 'none';
+  $('detailEmpty').style.display = 'block'; $('copyBtn').disabled = true; $('exportBtn').disabled = true;
+  $('generateNoteBtn').disabled = true;
+  currentEpisodeTitle = ''; currentPodcastName = '';
+  currentTranscriptSegments = [];
+  $('transcriptContent').innerHTML = '<div class="empty-panel">选择已转写的节目后查看</div>';
+  await loadEpisodes();
+  switchView('library');
+  analytics.track('episode_delete_success', { target:'delBtn', episodeId:deletedEpisodeId });
+};
+
+// ---- 初始化 ----
+document.addEventListener('click', event => {
+  const node = event.target.closest('button,a,.ep-item,.seg');
+  if (!node) return;
+  const target = node.id || node.dataset.view || (node.dataset.seek ? 'timestamp' : '') || node.classList[0] || node.tagName.toLowerCase();
+  analytics.track('element_click', { target:String(target).slice(0,80) });
+});
+document.addEventListener('focusin', event => {
+  if (event.target.matches('input,textarea,[contenteditable="true"]')) analytics.track('field_focus', { target:event.target.id || event.target.dataset.type || event.target.tagName.toLowerCase() });
+});
+let maxScrollDepth = 0;
+addEventListener('scroll', () => {
+  const total = document.documentElement.scrollHeight - innerHeight;
+  if (total <= 0) return;
+  const depth = Math.min(100, Math.round(scrollY / total * 100));
+  for (const mark of [25,50,75,100]) {
+    if (depth >= mark && maxScrollDepth < mark) { maxScrollDepth=mark; analytics.track('scroll_depth', { target:'page', properties:{percent:mark} }); }
+  }
+}, { passive:true });
+player.addEventListener('play', () => analytics.track('audio_play', { target:'player', properties:{position_sec:Math.floor(player.currentTime||0)} }));
+player.addEventListener('pause', () => analytics.track('audio_pause', { target:'player', properties:{position_sec:Math.floor(player.currentTime||0)} }));
+player.addEventListener('ended', () => analytics.track('audio_complete', { target:'player' }));
+document.addEventListener('visibilitychange', () => analytics.track(document.hidden?'page_hidden':'page_visible', { target:'document' }));
+addEventListener('error', () => analytics.track('javascript_error', { target:'window' }));
+analytics.track('page_view', { target:'podcasts', episodeId:null, properties:{viewport_width:innerWidth,viewport_height:innerHeight} });
+loadEpisodes();
+loadNoteLibrary();
+</script>
+</body>
+</html>

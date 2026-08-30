@@ -1,0 +1,26 @@
+# ---------- 密钥与本地配置（最重要，切勿上传）----------
+config.env
+config.local.env
+.env
+*.env
+
+# ---------- 运行时数据（数据库、上传的音频）----------
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---------- 系统与编辑器 ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

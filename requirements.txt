@@ -1,0 +1,12 @@
+# 核心依赖
+fastapi>=0.110
+uvicorn[standard]>=0.27
+openai>=1.0.0
+requests>=2.31
+python-dotenv>=1.0
+
+# 可选：仅当 ASR_PROVIDER=local_whisper 时需要（本机跑 Whisper，建议有 GPU）
+# openai-whisper
+
+# 可选：仅当需要从 HTML 解析时更稳（当前解析用正则，可不装）
+# beautifulsoup4
