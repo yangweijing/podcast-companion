@@ -10,7 +10,7 @@ _env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.env
 if os.path.exists(_env_path):
     try:
         from dotenv import load_dotenv
-        load_dotenv(_env_path)
+        load_dotenv(_env_path, override=True)
     except Exception:
         # dotenv 未安装时退化：手动解析简单的 KEY=VALUE
         with open(_env_path, "r", encoding="utf-8") as f:
@@ -92,6 +92,13 @@ XY_UA = _get(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
 )
+
+# ---------- 喜马拉雅解析 ----------
+# 默认无需配置：免费单集走免登录公开接口 m.ximalaya.com/tracks/{soundId}.json，
+# 可直接拿到标题/专辑名/时长/封面/音频直链。
+# 本 Cookie 仅作为「付费/会员单集」的补充手段（配合 yt-dlp 的 mpay 签名链路使用），
+# 绝大多数场景留空即可。填写方式：浏览器登录喜马拉雅后复制 Cookie 粘到这里。
+XIMALAYA_COOKIE = _get("XIMALAYA_COOKIE")
 
 # ---------- 本地音频上传 ----------
 # 单次上传上限（MB）；本地上传绕过小宇宙解析，文件存于 UPLOAD_DIR

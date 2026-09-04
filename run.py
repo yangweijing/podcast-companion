@@ -13,6 +13,4 @@ import uvicorn  # noqa: E402
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
-    # 演示模式默认开，方便零配置先看效果；填好 key 后改成 false
-    os.environ.setdefault("DEMO_MODE", "true")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

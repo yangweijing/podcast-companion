@@ -116,8 +116,14 @@
     .btn.danger:hover { background: var(--danger-soft); }
 
     .error { color: var(--danger); background: var(--danger-soft); border: 1px solid #E3C3BD;
-      border-radius: var(--radius); padding: 12px 15px; font-size: 13px; margin-top: 12px; display: none; }
+      border-radius: var(--radius); padding: 12px 15px; font-size: 13px; margin-top: 12px; display: none;
+      white-space: pre-line; line-height: 1.6; word-break: break-word; }
     .error.show { display: block; }
+    /* 非阻塞提示：解析成功但有附加说明（如付费集签名直链有时效）时用 */
+    .notice { color: #8A6100; background: #FFF6E0; border: 1px solid #EBD9A8;
+      border-radius: var(--radius); padding: 12px 15px; font-size: 13px; margin-top: 12px; display: none;
+      white-space: pre-line; line-height: 1.6; word-break: break-word; }
+    .notice.show { display: block; }
     .loading { text-align: center; color: var(--muted); padding: 20px 0; display: none; font-size: 13px; }
     .loading.show { display: block; }
     .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--line);
@@ -342,19 +348,20 @@
     <button class="nav-tab" data-view="notes">笔记</button>
   </nav>
   <div class="error" id="error" role="alert"></div>
+  <div class="notice" id="notice" role="status"></div>
 
   <!-- 添加节目 -->
   <section class="view-panel active" id="view-library">
     <div class="card">
       <div class="section-title">添加节目</div>
-      <div class="inline-row"><input type="text" id="urlInput" aria-label="小宇宙链接" placeholder="粘贴小宇宙 episode 链接" autocomplete="off"><button class="btn" id="addBtn">添加节目</button></div>
+      <div class="inline-row"><input type="text" id="urlInput" aria-label="节目链接" placeholder="粘贴链接：小宇宙 episode / 网易云播客单集 / 喜马拉雅单集" autocomplete="off"><button class="btn" id="addBtn">添加节目</button></div>
       <div class="inline-row" style="margin-top:8px;flex-wrap:wrap;gap:8px;">
         <input type="file" id="fileInput" accept="audio/*" aria-label="本地音频文件">
         <input type="text" id="titleInput" aria-label="节目标题" placeholder="节目标题（可选）" autocomplete="off">
         <input type="text" id="podInput" aria-label="播客名" placeholder="播客名（可选）" autocomplete="off">
         <button class="btn" id="uploadBtn">上传本地音频</button>
       </div>
-      <div class="hint">上传本地音频（mp3 / m4a / wav …）会存入本机 <code>data/uploads</code>，绕过小宇宙解析，可直接转写；演示模式下转写为规则占位稿，接真实 key 才会转你上传的音频。</div>
+      <div class="hint">解析不了的平台（如未配 Cookie 的喜马拉雅），可直接上传本地音频：存入本机 <code>data/uploads</code>，绕过平台解析，一样能转写。</div>
     </div>
     <div class="loading" id="loading"><span class="spinner"></span>正在解析节目…</div>
 
@@ -455,8 +462,11 @@ const analytics = { track(){}, flush(){} };
 
 function esc(s) { return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fmtTime(ms) { const s = Math.max(0, Math.floor((ms||0)/1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
-function showError(msg) { error.textContent = msg; error.className = 'error show'; }
-function hideError() { error.className = 'error'; }
+function apiErr(j, fallback) { return (j && (j.error || j.detail)) || fallback; }
+function showError(msg) { error.textContent = msg || ''; error.className = 'error show'; }
+function hideError() { error.className = 'error'; notice.className = 'notice'; }
+function showNotice(msg) { notice.textContent = msg || ''; notice.className = 'notice show'; }
+function hideNotice() { notice.className = 'notice'; }
 
 const STATUS_LABEL = { pending:'待处理', processing:'处理中', completed:'已完成', failed:'失败' };
 function badge(status) {
@@ -573,8 +583,10 @@ addBtn.onclick = async () => {
       body: JSON.stringify({ source_url: url })
     });
     const j = await r.json();
-    if (!r.ok) { showError(j.error || '解析失败'); return; }
+    if (!r.ok) { showError(apiErr(j, '解析失败')); return; }
     urlInput.value = '';
+    // 解析成功但有附加说明（如付费集拿到的是带时效的签名直链）→ 用非阻塞提示告知
+    if (j.warn) showNotice(j.warn); else hideNotice();
     await loadEpisodes();
     await selectEpisode(j.episode.id);
     analytics.track('episode_add_success', { target:'addBtn', episodeId:j.episode.id });
@@ -587,11 +599,11 @@ addBtn.onclick = async () => {
 };
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
 
-// ---- 上传本地音频 ----
+// ---- 上传本地音频（平台解析不了时的兜底：如未配 Cookie 的喜马拉雅）----
 uploadBtn.onclick = async () => {
   const f = fileInput.files[0];
   if (!f) { showError('请先选择一个音频文件'); return; }
-  hideError(); loading.className = 'loading show'; uploadBtn.disabled = true;
+  hideError(); hideNotice(); loading.className = 'loading show'; uploadBtn.disabled = true;
   try {
     const fd = new FormData();
     fd.append('file', f);
@@ -599,7 +611,7 @@ uploadBtn.onclick = async () => {
     if (podInput.value.trim()) fd.append('podcast', podInput.value.trim());
     const r = await fetch(`${API}/upload`, { method: 'POST', body: fd });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { showError(j.error || '上传失败'); return; }
+    if (!r.ok) { showError(apiErr(j, '上传失败')); return; }
     fileInput.value = ''; titleInput.value = ''; podInput.value = '';
     await loadEpisodes();
     await selectEpisode(j.episode.id);
@@ -609,6 +621,7 @@ uploadBtn.onclick = async () => {
     loading.className = 'loading'; uploadBtn.disabled = false;
   }
 };
+
 
 // ---- 逐字稿与分析分开执行 ----
 async function startEpisodeJob(kind) {

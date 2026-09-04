@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 
 import requests
@@ -19,8 +20,9 @@ from config import (ASR_PROVIDER, ASR_MAX_SECONDS, DEMO_MODE, UPLOAD_DIR,
                     VOLC_ASR_API_KEY, VOLC_ASR_RESOURCE_ID,
                     WHISPER_API_BASE, WHISPER_API_KEY, WHISPER_MODEL, XY_UA)
 
-# 火山引擎「豆包语音」录音文件识别极速版：同步返回，最大 100MB / 2 小时
-VOLC_ASR_ENDPOINT = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
+# 火山引擎「豆包语音」录音文件识别模型2.0：异步 submit + query 轮询
+VOLC_ASR_SUBMIT = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit"
+VOLC_ASR_QUERY = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/query"
 
 _DEMO_LINES = [
     "今天想和大家聊一个最近让我挺感触的话题。",
@@ -65,12 +67,7 @@ def _ffmpeg_compress(src: str) -> str | None:
 
 
 def _acquire_audio(audio_url: str):
-    """返回 (可直接读取的本地路径, 需清理的临时文件列表)。
-
-    - 本地上传文件（audio_url 以 /uploads/ 开头）：直接返回磁盘原文件，cleanup 为空，
-      不下载、不删除（前端还要继续播放）。
-    - 远程 URL：下载到临时文件，必要时 ffmpeg 压缩，cleanup 含临时文件。
-    """
+    """返回 (可直接读取的本地路径, 需清理的临时文件列表)。"""
     if audio_url.startswith("/uploads/"):
         local = os.path.join(UPLOAD_DIR, os.path.basename(audio_url.split("?", 1)[0]))
         if os.path.exists(local):
@@ -138,16 +135,11 @@ def _guess_audio_format(url: str) -> str:
     for ext in ("wav", "mp3", "ogg", "pcm", "spx", "amr", "aac", "m4a"):
         if path.endswith("." + ext):
             return ext
-    return "mp3"  # 播客音频绝大多数是 mp3
+    return "mp3"
 
 
 def volc_asr_transcribe(audio_url: str) -> list:
-    """火山引擎「豆包语音」录音文件识别极速版。
-
-    接口要求 audio.url 必须是**公网可访问**的链接（火山服务器会去拉取），
-    因此本地上传的音频（/uploads/...）无法使用，需改用 local_whisper。
-    返回带毫秒时间码与说话人标记的分句结果。
-    """
+    """火山引擎「豆包语音」录音文件识别模型2.0（异步 submit + query）。"""
     if not audio_url.startswith(("http://", "https://")):
         raise ValueError(
             "火山 ASR 需要公网可访问的音频链接，本地上传的音频（/uploads/...）无法被火山服务器读取。"
@@ -156,32 +148,47 @@ def volc_asr_transcribe(audio_url: str) -> list:
     if not VOLC_ASR_API_KEY:
         raise ValueError("未配置 VOLC_ASR_API_KEY（火山语音控制台创建；与方舟大模型 key 不同）")
 
-    headers = {
+    request_id = str(uuid.uuid4())
+    common_headers = {
         "Content-Type": "application/json",
         "X-Api-Key": VOLC_ASR_API_KEY,
         "X-Api-Resource-Id": VOLC_ASR_RESOURCE_ID,
-        "X-Api-Request-Id": str(uuid.uuid4()),
-        "X-Api-Sequence": "-1",
+        "X-Api-Request-Id": request_id,
     }
     payload = {
         "audio": {"url": audio_url, "format": _guess_audio_format(audio_url), "rate": 16000},
         "request": {
             "model_name": "bigmodel",
-            "enable_itn": True,   # 口语数字/金额转书面格式
-            "enable_punc": True,  # 自动加标点
-            "show_utterances": True,  # 返回分句 + 时间戳 + 说话人
+            "enable_itn": True,
+            "enable_punc": True,
+            "show_utterances": True,
         },
     }
-    resp = requests.post(VOLC_ASR_ENDPOINT, headers=headers, json=payload, timeout=900)
-    resp.raise_for_status()
-    data = resp.json()
-    api_msg = (data.get("headers") or {}).get("X-Api-Message", "")
-    api_code = str((data.get("headers") or {}).get("X-Api-Status-Code", ""))
-    if api_code and api_code != "20000000":
-        raise ValueError(f"火山 ASR 调用失败（{api_code} {api_msg}）。"
-                         f"常见原因：API Key 无效、未开通豆包语音服务，或音频链接不可访问。")
 
-    result = (data.get("body") or {}).get("result") or {}
+    # 1) 提交任务
+    submit = requests.post(VOLC_ASR_SUBMIT, headers=common_headers, json=payload, timeout=60)
+    submit.raise_for_status()
+    submit_data = submit.json()
+    _check_volc_status(submit_data, "submit")
+
+    # 2) 轮询查询结果
+    query_payload = {}
+    last = None
+    for _ in range(120):  # 最多约 10 分钟
+        time.sleep(5)
+        q = requests.post(VOLC_ASR_QUERY, headers=common_headers, json=query_payload, timeout=60)
+        q.raise_for_status()
+        qd = q.json()
+        last = qd
+        print(f"[火山 ASR 轮询] {_ + 1}/120: {_peek_status(qd)}")
+        if _check_volc_done(qd):
+            print("[火山 ASR] 转写完成")
+            break
+    else:
+        raise ValueError("火山 ASR 转写超时（轮询 10 分钟仍未完成），请稍后重试或更换音频。")
+
+    # 3) 解析结果：兼容 submit/query 不同返回层级
+    result = _extract_volc_result(last)
     utterances = result.get("utterances") or []
     out = []
     for i, u in enumerate(utterances):
@@ -191,17 +198,66 @@ def volc_asr_transcribe(audio_url: str) -> list:
         speaker = (u.get("additions") or {}).get("speaker")
         out.append({
             "id": len(out) + 1,
-            "start_ms": int(u.get("start_time") or 0),   # 火山返回毫秒
+            "start_ms": int(u.get("start_time") or 0),
             "end_ms": int(u.get("end_time") or 0),
             "speaker": f"说话人{speaker}" if speaker else None,
             "text": text,
         })
     if not out:
-        # 兜底：接口只给了整段文本，没有分句信息
         text = (result.get("text") or "").strip()
         if text:
             out = [{"id": 1, "start_ms": 0, "end_ms": 0, "speaker": None, "text": text}]
     return out
+
+
+def _check_volc_status(data: dict, stage: str) -> None:
+    code = str(data.get("code", ""))
+    message = data.get("message") or data.get("msg") or ""
+    if code and code not in ("1000", "0", ""):
+        raise ValueError(f"火山 ASR {stage} 失败（code={code} {message}）。"
+                        f"常见原因：API Key 无效、未开通豆包语音服务，或 Resource-Id 不匹配。")
+
+
+def _check_volc_done(data: dict) -> bool:
+    """判断查询返回是否已转写完成。"""
+    if not isinstance(data, dict):
+        return False
+    inner = data.get("data") if isinstance(data.get("data"), dict) else data
+    status = str(inner.get("status", "") or data.get("status", "")).lower().strip()
+    if status in ("done", "success", "completed", "succeed", "finish", "finished", "2", "3"):
+        return True
+    # 火山 bigmodel 2.0 的 query 返回经常 status/code 都为 None，但 result 已经就绪
+    result = _extract_volc_result(data)
+    if result and (result.get("utterances") or result.get("text")):
+        return True
+    code = str(data.get("code", ""))
+    if code in ("1000", "0") and result:
+        return True
+    return False
+
+
+def _peek_status(data: dict) -> str:
+    if not isinstance(data, dict):
+        return str(data)[:120]
+    inner = data.get("data") if isinstance(data.get("data"), dict) else data
+    status = inner.get("status") or data.get("status")
+    code = data.get("code")
+    has_result = bool(_extract_volc_result(data))
+    return f"status={status} code={code} has_result={has_result}"
+
+
+def _extract_volc_result(data: dict) -> dict:
+    if not isinstance(data, dict):
+        return {}
+    cand = data.get("result")
+    if isinstance(cand, dict):
+        return cand
+    inner = data.get("data")
+    if isinstance(inner, dict):
+        cand = inner.get("result")
+        if isinstance(cand, dict):
+            return cand
+    return {}
 
 
 def demo_segments() -> list:

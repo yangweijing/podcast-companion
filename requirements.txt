@@ -10,3 +10,4 @@ python-dotenv>=1.0
 
 # 可选：仅当需要从 HTML 解析时更稳（当前解析用正则，可不装）
 # beautifulsoup4
+python-multipart>=0.0.9

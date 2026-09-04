@@ -123,7 +123,13 @@ async def add_podcast(req: Request):
         cover_url=info.get("cover_url"), audio_url=info.get("audio_url"),
         duration_ms=info.get("duration_ms", 0),
     )
-    return {"episode": db.get_episode(ep_id)}
+    # info["_warn"]：解析成功但不完美（如付费集只拿到带时效的签名直链），
+    # 不阻断流程，交给前端用黄色提示条告知用户。
+    warn = info.get("_warn")
+    resp = {"episode": db.get_episode(ep_id)}
+    if warn:
+        resp["warn"] = warn
+    return resp
 
 
 @app.post("/api/podcasts/upload")
