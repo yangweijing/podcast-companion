@@ -1,0 +1,51 @@
+# Render 一键部署配置（Blueprint）
+#
+# 用法：把本文件推到 GitHub → Render 控制台 New → Blueprint → 选这个仓库 → 自动按下面配置建站。
+# 建好后还要做一件事：去服务的 Environment 页面填密钥类变量（下面标了 sync: false 的），
+# 尤其是 ACCESS_TOKEN（访问口令，不设的话任何人都能用你的 API key 烧钱）。
+
+services:
+  - type: web
+    name: podcast-companion
+    runtime: docker
+    plan: free
+    region: singapore          # 新加坡节点，国内访问延迟最低
+    branch: main
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_PATH
+        value: /data/podcasts.db
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: ASR_PROVIDER
+        value: whisper_api
+
+      # ⚠️ 密钥类：不要在仓库里填真值，部署后在 Render 控制台 Environment 里填
+      - key: ACCESS_TOKEN      # 访问口令，强烈建议设置（见 README「访问口令」）
+        sync: false
+      - key: LLM_PROVIDER      # deepseek / qwen / moonshot / doubao / openai
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: WHISPER_API_KEY   # 转写用的 key，可与 LLM_API_KEY 相同
+        sync: false
+      - key: XIMALAYA_COOKIE   # 可选：仅喜马拉雅付费集需要
+        sync: false
+
+# ────────── 数据持久化（可选，需付费计划）────────────
+# Render 免费计划的磁盘是临时的：每次重新部署（git push）都会清空，
+# 已添加的节目、逐字稿、笔记全部丢失。两条出路：
+#
+#   ① 不花钱：重新部署前在页面点「导出备份」，部署完点「导入备份」恢复。
+#      备份是 JSON 文件，含节目、逐字稿、分析和笔记（不含本地上传的音频文件）。
+#
+#   ② 花钱（Starter 计划，$7/月起）：把 plan 改成 starter，并取消下面 5 行注释，
+#      数据就落到持久盘上，重新部署不再丢，也就不用手动备份了。
+#
+#      disk:
+#        name: podcast-data
+#        mountPath: /data
+#        sizeGB: 1
+# ────────────────────────────────────────────────────

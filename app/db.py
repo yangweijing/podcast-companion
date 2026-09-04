@@ -157,8 +157,14 @@ def list_episodes(q="", limit=50) -> list:
 
 
 def delete_episode(id):
+    """删除节目及其全部关联数据。
+
+    segments / analysis / chat_* 有外键 ON DELETE CASCADE，会自动清掉；
+    但 notes 表的外键没加约束，需手动软删，否则会留下找不到节目的孤儿笔记。
+    """
     conn = get_conn()
     try:
+        conn.execute("UPDATE notes SET deleted=1, is_shared=0 WHERE episode_id=?", (id,))
         conn.execute("DELETE FROM episodes WHERE id=?", (id,))
         conn.commit()
     finally:
@@ -291,6 +297,108 @@ def get_messages(session_id) -> list:
         return [{"role": r["role"], "content": r["content"]} for r in rows]
     finally:
         conn.close()
+
+
+# ---------------- 备份与恢复 ----------------
+# 为什么要：Render 等免费云平台的磁盘是「临时」的，重新部署（git push）会清空，
+# 已添加的节目、逐字稿、笔记会全部丢失。重新部署前下载备份，部署后再传回来即可。
+
+def _notes_of_episode(episode_id) -> list:
+    """备份用：取该节目下所有未删除的笔记（不要求 is_shared）。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM notes WHERE episode_id=? AND deleted=0 ORDER BY id ASC", (episode_id,)
+        ).fetchall()
+        return [_row_to_note(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def export_all() -> dict:
+    """导出整个库为可 JSON 序列化的字典（节目 + 逐字稿 + 分析 + 笔记）。"""
+    items = []
+    for ep in list_episodes(limit=1000000):
+        item = dict(ep)
+        item["segments"] = get_segments(ep["id"])
+        item["analysis"] = get_analysis(ep["id"])
+        item["notes"] = _notes_of_episode(ep["id"])
+        items.append(item)
+    return {"version": 1, "exported_at": _now(), "episodes": items}
+
+
+def import_all(data: dict, replace: bool = False) -> dict:
+    """导入备份。replace=True 先清空现有数据；否则跳过 id 已存在的节目。
+
+    会尽量保留原始 id（逐字稿标注按 segment id 定位，保 id 可避免标注错位）。
+    """
+    episodes = (data or {}).get("episodes") or []
+    stats = {"episodes": 0, "segments": 0, "notes": 0, "skipped": 0}
+    conn = get_conn()
+    try:
+        if replace:
+            for t in ("chat_messages", "chat_sessions", "notes", "analysis", "segments", "episodes"):
+                conn.execute(f"DELETE FROM {t}")
+        for ep in episodes:
+            eid = ep.get("id")
+            if not replace and eid is not None:
+                if conn.execute("SELECT 1 FROM episodes WHERE id=?", (eid,)).fetchone():
+                    stats["skipped"] += 1
+                    continue
+            cur = conn.execute(
+                """INSERT INTO episodes
+                   (id, source_url, title, podcast, cover_url, audio_url, duration_ms,
+                    transcript_status, analysis_status, error_message, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (eid, ep.get("source_url"), ep.get("title", ""), ep.get("podcast", ""),
+                 ep.get("cover_url"), ep.get("audio_url"), int(ep.get("duration_ms") or 0),
+                 ep.get("transcript_status") or "pending", ep.get("analysis_status") or "pending",
+                 ep.get("error_message"), ep.get("created_at") or _now(), ep.get("updated_at") or _now()),
+            )
+            new_id = eid if eid is not None else cur.lastrowid
+            stats["episodes"] += 1
+
+            for s in ep.get("segments") or []:
+                conn.execute(
+                    """INSERT OR REPLACE INTO segments
+                       (id, episode_id, start_ms, end_ms, speaker, text, is_key, include_original, note_text)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (s.get("id"), new_id, int(s.get("start_ms") or 0), int(s.get("end_ms") or 0),
+                     s.get("speaker"), s.get("text", ""), int(bool(s.get("is_key"))),
+                     int(bool(s.get("include_original"))), s.get("note_text", "") or ""),
+                )
+                stats["segments"] += 1
+
+            a = ep.get("analysis")
+            if a:
+                conn.execute(
+                    """INSERT INTO analysis (episode_id, summary, mainline, major_questions, quotes)
+                       VALUES (?,?,?,?,?)
+                       ON CONFLICT(episode_id) DO UPDATE SET
+                         summary=excluded.summary, mainline=excluded.mainline,
+                         major_questions=excluded.major_questions, quotes=excluded.quotes""",
+                    (new_id, a.get("summary", ""),
+                     json.dumps(a.get("mainline") or {}, ensure_ascii=False),
+                     json.dumps(a.get("major_questions") or [], ensure_ascii=False),
+                     json.dumps(a.get("quotes") or [], ensure_ascii=False)),
+                )
+
+            for n in ep.get("notes") or []:
+                conn.execute(
+                    """INSERT OR REPLACE INTO notes
+                       (id, episode_id, episode_title, title, document, is_shared, source_mode, deleted,
+                        created_at, updated_at)
+                       VALUES (?,?,?,?,?,?,?,0,?,?)""",
+                    (n.get("id"), new_id, n.get("episode_title", ""), n.get("title", ""),
+                     json.dumps(n.get("document") or [], ensure_ascii=False),
+                     int(bool(n.get("is_shared"))), n.get("source_mode") or "full_episode",
+                     n.get("created_at") or _now(), n.get("updated_at") or _now()),
+                )
+                stats["notes"] += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return stats
 
 
 # ---------------- notes ----------------

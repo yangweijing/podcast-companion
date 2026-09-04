@@ -145,6 +145,16 @@
     .ep-thumb--empty { display: flex; align-items: center; justify-content: center;
       font-family: var(--serif); font-size: 20px; color: var(--muted); }
     .ep-item-body { flex: 1; min-width: 0; }
+    /* 删除按钮：默认很淡，鼠标移到整行才显现，避免误触 */
+    .ep-del {
+      flex-shrink: 0; border: 1px solid var(--line); background: transparent;
+      color: var(--muted); border-radius: 5px; padding: 4px 9px; font-size: 12px;
+      cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, border-color .15s;
+      font-family: inherit; line-height: 1.4;
+    }
+    .ep-item:hover .ep-del, .ep-del:focus-visible { opacity: 1; }
+    .ep-del:hover { color: #c0392b; border-color: #c0392b; }
+    .ep-del:disabled { opacity: 1; cursor: default; color: var(--muted); }
     .ep-title { font-weight: 700; font-size: 14.5px; line-height: 1.4; margin-bottom: 3px;
       overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .ep-podcast { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
@@ -363,6 +373,18 @@
       </div>
       <div class="hint">解析不了的平台（如未配 Cookie 的喜马拉雅），可直接上传本地音频：存入本机 <code>data/uploads</code>，绕过平台解析，一样能转写。</div>
     </div>
+
+    <!-- 数据备份：部署到云端后，重新部署会清空数据库，靠它自救 -->
+    <div class="card" style="margin-top:12px;">
+      <div class="section-title">数据备份</div>
+      <div class="inline-row" style="flex-wrap:wrap;gap:8px;">
+        <button class="btn" id="backupBtn">导出备份</button>
+        <button class="btn" id="restoreBtn">导入备份</button>
+        <input type="file" id="restoreInput" accept="application/json,.json" aria-label="备份文件" style="display:none">
+      </div>
+      <div class="hint">部署在云端时，重新部署会清空数据库。更新前先「导出备份」，更新完再「导入备份」即可找回节目、逐字稿与笔记（导入会覆盖现有数据）。备份不含本地上传的音频文件本身。</div>
+    </div>
+
     <div class="loading" id="loading"><span class="spinner"></span>正在解析节目…</div>
 
     <!-- 节目列表 -->
@@ -468,6 +490,17 @@ function hideError() { error.className = 'error'; notice.className = 'notice'; }
 function showNotice(msg) { notice.textContent = msg || ''; notice.className = 'notice show'; }
 function hideNotice() { notice.className = 'notice'; }
 
+// 统一处理「访问口令失效」：包装一次 fetch，所有接口调用自动生效，无需逐处改。
+// 仅当服务端设置了 ACCESS_TOKEN（部署到公网）时才可能收到 401。
+const _rawFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const r = await _rawFetch(...args);
+  if (r.status === 401) {
+    showError('访问口令已失效或不正确。请用「https://你的网址/?token=你的口令」重新打开一次页面。');
+  }
+  return r;
+};
+
 const STATUS_LABEL = { pending:'待处理', processing:'处理中', completed:'已完成', failed:'失败' };
 function badge(status) {
   if (!status) return '';
@@ -512,8 +545,14 @@ async function loadEpisodes(keepSelection) {
         <div class="ep-title">${esc(ep.title||'（无标题）')}</div>
         <div class="ep-podcast">${esc(ep.podcast||'')}</div>
         <div class="ep-meta-line">${dur}<div class="badges">${badge(ep.transcript_status)}${badge(ep.analysis_status)}</div></div>
-      </div>`;
+      </div>
+      <button class="ep-del" data-del="${ep.id}" title="删除这期节目" aria-label="删除这期节目">删除</button>`;
     div.onclick = () => selectEpisode(ep.id);
+    // 删除按钮：拦住冒泡，否则会顺带触发整行的「选中节目」
+    div.querySelector('.ep-del').onclick = (e) => {
+      e.stopPropagation();
+      confirmDeleteEpisode(ep);
+    };
     episodeList.appendChild(div);
   }
 }
@@ -524,6 +563,28 @@ $('podcastSearch').addEventListener('input', () => {
     loadEpisodes(true);
   }, 250);
 });
+
+// ---- 删除单个节目 ----
+async function confirmDeleteEpisode(ep) {
+  const name = ep.title || ep.podcast || '（无标题）';
+  if (!confirm(`确定删除《${name}》吗？\n\n该节目的逐字稿、分析与笔记会一并删除，且无法撤销。`)) return;
+  hideError(); hideNotice();
+  const r = await fetch(`${API}/${ep.id}`, { method: 'DELETE' });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    showError(apiErr(j, '删除失败'));
+    return;
+  }
+  showNotice(`已删除《${name}》`);
+  // 删掉的正好是当前选中的节目 → 收起详情区，避免停留在已不存在的数据上
+  if (currentEpisodeId === ep.id) {
+    clearInterval(pollTimer);
+    currentEpisodeId = null;
+    detailSection.style.display = 'none';
+    $('detailEmpty').style.display = 'block';
+  }
+  await loadEpisodes();
+}
 
 // ---- 选择节目 ----
 async function selectEpisode(id) {
@@ -619,6 +680,54 @@ uploadBtn.onclick = async () => {
     showError('网络错误: ' + e.message);
   } finally {
     loading.className = 'loading'; uploadBtn.disabled = false;
+  }
+};
+
+
+// ---- 数据备份与恢复（云端部署必备：重新部署会清空数据库）----
+backupBtn.onclick = async () => {
+  hideError(); hideNotice();
+  try {
+    const r = await fetch('/api/backup');
+    if (!r.ok) { showError('导出备份失败（HTTP ' + r.status + '）'); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'podcast-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showNotice('备份已导出，请妥善保存这个文件');
+  } catch (e) {
+    showError('导出备份失败: ' + e.message);
+  }
+};
+
+restoreBtn.onclick = () => restoreInput.click();
+restoreInput.onchange = async () => {
+  const f = restoreInput.files[0];
+  if (!f) return;
+  hideError(); hideNotice();
+  if (!confirm('导入将「覆盖」现有全部数据，确定继续吗？\n建议先导出一份当前备份。')) {
+    restoreInput.value = ''; return;
+  }
+  loading.className = 'loading show'; restoreBtn.disabled = true;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!data || !Array.isArray(data.episodes)) throw new Error('不是有效的备份文件（缺少 episodes）');
+    const r = await fetch('/api/restore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, replace: true }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { showError(apiErr(j, '导入失败')); return; }
+    const s = j.stats || {};
+    showNotice(`导入完成：节目 ${s.episodes} 期、逐字稿段落 ${s.segments} 条、笔记 ${s.notes} 篇`);
+    await loadEpisodes();
+  } catch (e) {
+    showError('导入失败: ' + e.message);
+  } finally {
+    loading.className = 'loading'; restoreBtn.disabled = false; restoreInput.value = '';
   }
 };
 

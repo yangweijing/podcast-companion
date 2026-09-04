@@ -100,6 +100,16 @@ XY_UA = _get(
 # 绝大多数场景留空即可。填写方式：浏览器登录喜马拉雅后复制 Cookie 粘到这里。
 XIMALAYA_COOKIE = _get("XIMALAYA_COOKIE")
 
+# ---------- 公网访问保护 ----------
+# ⚠️ 部署到公网时强烈建议设置！否则任何人拿到网址都能用你的 API key 转写/对话，会烧钱。
+# 设置后，访问需先带口令：首次用 https://你的网址/?token=你的口令 打开一次，
+# 服务端会种下 cookie，之后直接访问网址即可（同一浏览器 30 天内免输）。
+# 留空 = 不启用保护（本地开发默认如此）。
+ACCESS_TOKEN = _get("ACCESS_TOKEN")
+# cookie 名称与有效期（天）
+AUTH_COOKIE_NAME = "pc_token"
+AUTH_COOKIE_DAYS = int(_get("AUTH_COOKIE_DAYS", "30"))
+
 # ---------- 本地音频上传 ----------
 # 单次上传上限（MB）；本地上传绕过小宇宙解析，文件存于 UPLOAD_DIR
 MAX_UPLOAD_MB = int(_get("MAX_UPLOAD_MB", "200"))

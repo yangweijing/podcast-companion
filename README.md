@@ -186,3 +186,128 @@ podcast-companion/
 | POST | `/api/podcasts/{id}/notes/generate` | 生成笔记 |
 | GET/PUT/DELETE | `/api/notes/{id}` | 笔记读取/保存/删除 |
 | GET | `/api/notes/{id}/export` | 导出 .doc |
+| DELETE | `/api/podcasts/{id}` | 删除节目（连带其逐字稿、分析、笔记） |
+| GET | `/api/health` | 健康检查与配置自检（无需口令，云平台探活用） |
+| GET | `/api/backup` | 导出全库 JSON 备份 |
+| POST | `/api/restore` | 导入备份 `{data, replace}` |
+
+---
+
+## 七、部署到公网（拿到一个网址）
+
+本地跑起来只有 `http://localhost:8000`，换台设备就打不开。部署到云平台后会得到一个
+`https://xxx.onrender.com` 这样的公网地址，手机、平板都能直接用。
+
+### 7.1 为什么不能用 GitHub Pages
+
+GitHub Pages 只能放**静态网页**（HTML/CSS/JS），跑不了 Python 进程，也没有数据库。
+而本应用是 FastAPI + SQLite 的**后端程序**——添加节目要调解析、转写要调 API、
+数据要落库，这些都必须有服务端在跑。所以 Pages 用不了，得用支持后端的云平台。
+
+（顺带一提：仓库里 `juecha-shouzhang`、`shanshu-videos` 那两个项目能在 Pages 上跑，
+是因为它们是纯前端应用，数据存在浏览器本地，不需要服务器。）
+
+### 7.2 方案 A：Render（推荐，有免费计划）
+
+仓库里已经备好了 `Dockerfile` 和 `render.yaml`，按下面几步走即可。
+
+**第 1 步：把代码推到 GitHub**（Render 从 GitHub 拉代码构建）
+
+```bash
+git add -A && git commit -m "准备部署" && git push origin main
+```
+
+**第 2 步：在 Render 建服务**
+
+1. 打开 <https://dashboard.render.com> → 用 GitHub 登录
+2. `New` → `Blueprint`（蓝图，会读仓库里的 `render.yaml`）
+3. 选中 `yangweijing/podcast-companion` 仓库
+4. 地域保持 **Singapore**（离国内最近，延迟最低）
+5. 点 Apply，等待首次构建（约 3–5 分钟，要装依赖和 ffmpeg）
+
+**第 3 步：填密钥**（构建完还不能用，缺密钥）
+
+进入服务的 `Environment` 页，填这几个变量：
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `ACCESS_TOKEN` | **强烈建议** | 访问口令，见 7.3。不设 = 任何人都能用你的 key 烧钱 |
+| `LLM_PROVIDER` | 是 | `deepseek` / `qwen` / `moonshot` / `doubao` / `openai` |
+| `LLM_API_KEY` | 是 | 大模型密钥 |
+| `WHISPER_API_KEY` | 是 | 转写密钥，与 LLM 同一家时可填同样的值 |
+| `XIMALAYA_COOKIE` | 否 | 仅喜马拉雅**付费**单集需要 |
+
+填完点 `Save Changes`，服务会自动重启。
+
+**第 4 步：自检**
+
+浏览器打开 `https://你的服务.onrender.com/api/health`，应看到：
+
+```json
+{"status":"ok","episodes":0,"demo_mode":false,"llm_ready":true,"asr_ready":true,"auth_enabled":true}
+```
+
+`llm_ready` / `asr_ready` 都是 `true` 就说明密钥生效了；哪一项是 `false` 就回去检查对应的 key。
+
+> **免费计划的休眠**：15 分钟无人访问会自动休眠，下次打开要等 30–50 秒冷启动，
+> 这是免费计划的特性，不是故障。
+
+### 7.3 访问口令（设了才安全）
+
+部署到公网后，网址是公开的。不设口令的话，**任何人打开都能用你的 API key 转写和对话，账单算你的**。
+
+设了 `ACCESS_TOKEN` 之后：
+
+- 首次用 `https://你的网址/?token=你的口令` 打开一次
+- 服务端会种一个 cookie，之后同一浏览器 30 天内直接访问网址即可，不用每次输
+
+口令失效（或换浏览器）时，页面会提示你重新用带 `?token=` 的地址打开一次。
+
+`render.yaml` 里把它标了 `sync: false`，意思是密钥不写进仓库、只在 Render 控制台填，避免泄露。
+
+### 7.4 数据会不会丢？（务必读）
+
+**免费计划的磁盘是临时的：每次重新部署（你 `git push` 之后）都会清空**，
+已添加的节目、逐字稿、笔记全部丢失。
+
+页面上有「数据备份」区块，养成这个习惯：
+
+```
+重新部署前 → 点「导出备份」（下载一个 JSON）
+部署完成后 → 点「导入备份」（选刚才那个文件）→ 数据全回来
+```
+
+备份包含：节目、逐字稿段落（含你的重点标注）、分析结果、笔记。
+**不包含**本地上传的音频文件本身（那些文件存在服务器磁盘上，同样会被清掉）。
+
+想一劳永逸，两个办法：
+
+- **花钱**：Render 升级到 Starter（$7/月），取消 `render.yaml` 里 `disk:` 那几行的注释，
+  把 plan 改成 `starter`，数据落在持久盘上，重新部署不再丢。
+- **不花钱**：只用「链接解析」添加节目（音频走平台直链，不占本站磁盘），
+  别用「上传本地音频」；配合上面的导出/导入备份使用。
+
+### 7.5 方案 B：不部署，只想远程访问本机
+
+如果你只是想在手机上访问自己电脑上的服务（数据留在本地，零成本、不丢数据），
+用 Cloudflare 的免费内网穿透：
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:8000
+```
+
+会输出一个 `https://xxx.trycloudflare.com` 的临时网址，手机直接打开就能用。
+**缺点**：电脑必须开机且服务在跑，网址每次重启都会变。
+
+### 7.6 方案 C：其它平台
+
+`Dockerfile` 是标准的，换平台基本不用改：
+
+- **Railway**：New Project → Deploy from GitHub，会自动识别 Dockerfile。
+  若提示缺 ffmpeg，在项目设置里加一个 `nixpacks.toml`：`[phases.setup]` 下写 `aptPkgs = ["ffmpeg"]`。
+- **Fly.io**：`fly launch` 后按提示来；要持久化数据需 `fly volumes create data --size 1`
+  并在 `fly.toml` 里挂载到 `/data`。
+- **Zeabur / Northflank**：导入仓库，识别 Dockerfile，填同样的环境变量即可。
+
+无论哪个平台，都要记住两件事：**设 `ACCESS_TOKEN`**、**定期导出备份**。

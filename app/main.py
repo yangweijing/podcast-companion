@@ -3,7 +3,9 @@
 启动：uvicorn main:app --port 8000  （在 app/ 目录下）
 或直接：python run.py
 """
+import json
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -13,7 +15,8 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import db
-from config import (ALLOWED_UPLOAD_EXT, BASE_DIR, DEMO_MODE, MAX_UPLOAD_MB, UPLOAD_DIR,
+from config import (ACCESS_TOKEN, ALLOWED_UPLOAD_EXT, AUTH_COOKIE_DAYS, AUTH_COOKIE_NAME,
+                    BASE_DIR, DB_PATH, DEMO_MODE, MAX_UPLOAD_MB, UPLOAD_DIR,
                     has_asr, has_llm)
 from providers import parser, asr, llm
 from providers import prompts as _prompts
@@ -98,6 +101,69 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
+
+
+# ---------------- 公网访问保护（可选，靠 ACCESS_TOKEN 开关） ----------------
+# 为什么要这个：部署到公网后，若不设口令，任何人拿到网址都能用你的 API key
+# 调转写和对话，账单算你的。设置 ACCESS_TOKEN 后需口令才能访问。
+# 用法：首次打开 https://你的网址/?token=你的口令 ，服务端种 cookie，之后直接访问即可。
+
+def _token_ok(req: Request) -> bool:
+    """校验访问口令：query ?token= / 请求头 X-Access-Token / cookie，任一匹配即通过。"""
+    if not ACCESS_TOKEN:
+        return True
+    got = (req.query_params.get("token")
+           or req.headers.get("x-access-token")
+           or req.cookies.get(AUTH_COOKIE_NAME)
+           or "")
+    return got == ACCESS_TOKEN
+
+
+@app.middleware("http")
+async def auth_middleware(req: Request, call_next):
+    path = req.url.path
+    need_auth = path.startswith("/api/") or path.startswith("/uploads/")
+    # 健康检查必须放行：云平台探活请求不会带口令
+    if need_auth and path.rstrip("/") == "/api/health":
+        need_auth = False
+
+    if need_auth and not _token_ok(req):
+        return JSONResponse(
+            {"error": "需要访问口令：请先用「https://你的网址/?token=你的口令」打开一次，之后同一浏览器免输。"},
+            status_code=401,
+        )
+
+    resp = await call_next(req)
+
+    # 首页带正确口令访问时种下 cookie，之后直接访问网址即可
+    if ACCESS_TOKEN and not path.startswith(("/api/", "/uploads/")):
+        if req.query_params.get("token") == ACCESS_TOKEN:
+            resp.set_cookie(
+                AUTH_COOKIE_NAME, ACCESS_TOKEN,
+                max_age=AUTH_COOKIE_DAYS * 86400,
+                httponly=True, samesite="lax", secure=req.url.scheme == "https",
+            )
+    return resp
+
+
+# ---------------- 健康检查 / 部署自检 ----------------
+
+@app.get("/api/health")
+async def health():
+    """云端探活与自检。无需密钥、无需口令，部署后浏览器打开即可确认配置是否生效。"""
+    try:
+        count = len(db.list_episodes(limit=100000))
+        db_ok = True
+    except Exception:
+        count, db_ok = -1, False
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "episodes": count,
+        "demo_mode": DEMO_MODE,
+        "llm_ready": has_llm(),
+        "asr_ready": has_asr(),
+        "auth_enabled": bool(ACCESS_TOKEN),
+    }
 
 
 # ---------------- 节目 ----------------
@@ -366,6 +432,47 @@ async def export_note(note_id: int):
 
 def _esc(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# ---------------- 数据备份与恢复 ----------------
+# 重要性：Render 等免费云的磁盘是临时的，重新部署会清空。
+# 流程：重新部署前打开 /api/backup 下载一份 JSON → 部署完在页面点「导入备份」传回来。
+
+@app.get("/api/backup")
+async def backup():
+    """导出全库为 JSON 下载（节目 + 逐字稿 + 分析 + 笔记）。"""
+    try:
+        data = db.export_all()
+    except Exception as e:
+        raise HTTPException(500, f"导出失败：{e}")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    body = json.dumps(data, ensure_ascii=False)
+    return Response(
+        body, media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="podcast-backup-{stamp}.json"'},
+    )
+
+
+@app.post("/api/restore")
+async def restore(req: Request):
+    """导入备份 JSON。body: {"data": {...备份内容...}, "replace": true/false}
+
+    replace=true 先清空现有数据再导入（部署后恢复用这个）；
+    false 则跳过已存在的节目 id（合并用）。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        raise HTTPException(400, "请求体不是合法 JSON")
+    payload = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(payload, dict) or "episodes" not in payload:
+        raise HTTPException(400, "备份内容无效：缺少 episodes 字段")
+    replace = bool((body or {}).get("replace", False))
+    try:
+        stats = db.import_all(payload, replace=replace)
+    except Exception as e:
+        raise HTTPException(500, f"导入失败：{e}")
+    return {"ok": True, "stats": stats}
 
 
 # ---------------- 前端静态托管 ----------------
