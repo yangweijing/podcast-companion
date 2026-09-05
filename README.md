@@ -314,7 +314,7 @@ cloudflared tunnel --url http://localhost:8000
 
 ---
 
-## 八、设备本地版（GitHub Pages + Cloudflare Worker，数据存浏览器）
+## 八、设备本地版（GitHub Pages + 无状态后端，数据存浏览器）
 
 > 2026-09 新增。与上面的 Render 版并存，二者选一即可。
 
@@ -322,8 +322,9 @@ cloudflared tunnel --url http://localhost:8000
 IndexedDB 里**，服务器零存储 —— 电脑和手机各自独立，电脑关机后手机照样用。
 
 ```
-webapp/   ← 前端（部署到 GitHub Pages，访问 https://yangweijing.github.io/podcast-companion/）
-worker/   ← Cloudflare Worker（无状态管道：解析链接 / 转发转写 / 转发 AI，不存任何数据）
+docs/   ← 前端（部署到 GitHub Pages，访问 https://yangweijing.github.io/podcast-companion/）
+api/    ← 无状态后端（Vercel Edge Function；解析链接 / 转发转写 / 转发 AI，不存任何数据）
+worker/ ← 同款后端的 Cloudflare Worker 版（备选；注意 *.workers.dev 在中国大陆常被墙）
 ```
 
 ### 部署步骤
@@ -331,21 +332,25 @@ worker/   ← Cloudflare Worker（无状态管道：解析链接 / 转发转写 
 **1. 前端**：仓库推到 GitHub 后，仓库 Settings → Pages → Source 选 `main` 分支 `/docs`，
 访问 `https://yangweijing.github.io/podcast-companion/`。
 
-**2. Worker**（需要 Node.js 18+）：
+**2. 后端（推荐 Vercel，国内可直连，免自有域名）**：
 
-```bash
-cd worker
-npx wrangler login          # 浏览器授权 Cloudflare 账号
-npx wrangler deploy         # 首次部署，得到 https://podcast-companion-api.<你的子域>.workers.dev
+> ⚠️ 为什么不用 Cloudflare Workers：它的 `*.workers.dev` 域名在中国大陆经常被墙，
+> 浏览器会直接报 `Failed to fetch`，后端等于用不了。Vercel 的 `*.vercel.app` 在国内通常能直连。
 
-# 配置密钥（逐条执行，按提示粘贴值；这些值不进代码不进仓库）
-npx wrangler secret put LLM_API_KEY        # 豆包方舟 key
-npx wrangler secret put LLM_MODEL          # 方舟接入点 ep-xxxx
-npx wrangler secret put VOLC_ASR_API_KEY   # 火山语音 key
-npx wrangler secret put ACCESS_TOKEN       # 可选：访问口令（防止别人白嫖你的 key）
-```
+- 打开 https://vercel.com → Sign Up（可用 GitHub 账号直接授权）
+- Dashboard → Add New → Project → Import 本仓库 `podcast-companion`
+- 不用改任何构建设置，Vercel 会自动识别 `api/` 目录部署为边缘函数
+- Project Settings → Environment Variables，添加以下变量（值照搬本地 `config.env`）：
+  - `LLM_API_KEY`（豆包方舟 key）
+  - `LLM_MODEL`（方舟接入点 `ep-xxxx`）
+  - `VOLC_ASR_API_KEY`（火山语音 key）
+  - `ACCESS_TOKEN`（可选，访问口令，防别人白嫖你的 key）
+  - `LLM_BASE_URL` / `VOLC_ASR_RESOURCE_ID` / `XIMALAYA_COOKIE` 可选
+- Deploy 完成后得到网址 `https://<项目名>.vercel.app`
 
-**3. 打开网页**，在「边缘服务设置」里填 Worker 地址和口令（只存本机），点「测试连通」。
+**3.（备选）Cloudflare Worker**：若你网络能访问 `*.workers.dev`，也可 `cd worker && npx wrangler deploy` 后用 `npx wrangler secret put` 填上述密钥。
+
+**4. 打开网页**，在「后端服务设置」里填 Vercel 地址（如 `https://xxx.vercel.app`）和访问口令（只存本机），点「测试连通」变绿即可。
 
 ### 与 Render 版的差异
 
