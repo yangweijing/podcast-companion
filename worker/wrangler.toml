@@ -1,0 +1,14 @@
+name = "podcast-companion-api"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+# ── 非敏感变量（可入库）───────────────────────────────
+[vars]
+LLM_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"   # 豆包方舟（OpenAI 兼容）
+VOLC_ASR_RESOURCE_ID = "volc.bigasr.auc_turbo"               # 火山录音文件识别·极速版（支持 Base64 直传）
+
+# ── 敏感变量（不入库！部署后用 wrangler secret put 配置）──
+#   npx wrangler secret put LLM_API_KEY        # 豆包方舟 key
+#   npx wrangler secret put LLM_MODEL          # 方舟接入点 ep-xxxx
+#   npx wrangler secret put VOLC_ASR_API_KEY   # 火山语音 key
+#   npx wrangler secret put ACCESS_TOKEN       # 可选：接口访问口令

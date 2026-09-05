@@ -311,3 +311,48 @@ cloudflared tunnel --url http://localhost:8000
 - **Zeabur / Northflank**：导入仓库，识别 Dockerfile，填同样的环境变量即可。
 
 无论哪个平台，都要记住两件事：**设 `ACCESS_TOKEN`**、**定期导出备份**。
+
+---
+
+## 八、设备本地版（GitHub Pages + Cloudflare Worker，数据存浏览器）
+
+> 2026-09 新增。与上面的 Render 版并存，二者选一即可。
+
+这版的特点：**所有数据（节目、逐字稿、笔记、上传的音频）只存在当前设备浏览器的
+IndexedDB 里**，服务器零存储 —— 电脑和手机各自独立，电脑关机后手机照样用。
+
+```
+webapp/   ← 前端（部署到 GitHub Pages，访问 https://yangweijing.github.io/podcast-companion/webapp/）
+worker/   ← Cloudflare Worker（无状态管道：解析链接 / 转发转写 / 转发 AI，不存任何数据）
+```
+
+### 部署步骤
+
+**1. 前端**：仓库推到 GitHub 后，仓库 Settings → Pages → Source 选 `main` 分支 `root`，
+访问 `https://yangweijing.github.io/podcast-companion/webapp/`。
+
+**2. Worker**（需要 Node.js 18+）：
+
+```bash
+cd worker
+npx wrangler login          # 浏览器授权 Cloudflare 账号
+npx wrangler deploy         # 首次部署，得到 https://podcast-companion-api.<你的子域>.workers.dev
+
+# 配置密钥（逐条执行，按提示粘贴值；这些值不进代码不进仓库）
+npx wrangler secret put LLM_API_KEY        # 豆包方舟 key
+npx wrangler secret put LLM_MODEL          # 方舟接入点 ep-xxxx
+npx wrangler secret put VOLC_ASR_API_KEY   # 火山语音 key
+npx wrangler secret put ACCESS_TOKEN       # 可选：访问口令（防止别人白嫖你的 key）
+```
+
+**3. 打开网页**，在「边缘服务设置」里填 Worker 地址和口令（只存本机），点「测试连通」。
+
+### 与 Render 版的差异
+
+| | Render 版（本页上面讲的） | 设备本地版（本节） |
+|--|--|--|
+| 数据存在哪 | Render 云服务器（免费版重部署会清空） | 各自设备浏览器（永不丢，除非清浏览器数据） |
+| 设备间数据 | 共享同一份 | 不共享（各存各的，靠备份 JSON 迁移） |
+| 冷启动 | 15 分钟闲置后要等 30–50 秒 | Pages 秒开；Worker 毫秒级 |
+| 网址 | xxx.onrender.com | yangweijing.github.io |
+| 转写 | 火山 ASR（链接）/ Whisper（上传） | 火山 ASR 极速版（链接与上传都支持，上传走 Base64 直传） |
