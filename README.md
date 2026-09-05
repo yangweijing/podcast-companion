@@ -322,14 +322,14 @@ cloudflared tunnel --url http://localhost:8000
 IndexedDB 里**，服务器零存储 —— 电脑和手机各自独立，电脑关机后手机照样用。
 
 ```
-webapp/   ← 前端（部署到 GitHub Pages，访问 https://yangweijing.github.io/podcast-companion/webapp/）
+webapp/   ← 前端（部署到 GitHub Pages，访问 https://yangweijing.github.io/podcast-companion/）
 worker/   ← Cloudflare Worker（无状态管道：解析链接 / 转发转写 / 转发 AI，不存任何数据）
 ```
 
 ### 部署步骤
 
-**1. 前端**：仓库推到 GitHub 后，仓库 Settings → Pages → Source 选 `main` 分支 `root`，
-访问 `https://yangweijing.github.io/podcast-companion/webapp/`。
+**1. 前端**：仓库推到 GitHub 后，仓库 Settings → Pages → Source 选 `main` 分支 `/docs`，
+访问 `https://yangweijing.github.io/podcast-companion/`。
 
 **2. Worker**（需要 Node.js 18+）：
 
