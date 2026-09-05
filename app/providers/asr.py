@@ -7,6 +7,7 @@
 长音频（>25MB）需要 ffmpeg 做压缩/分段，否则 Whisper API 会拒收；
 若环境无 ffmpeg，短音频（≤25MB）仍可正常转写。
 """
+import base64
 import os
 import shutil
 import subprocess
@@ -138,13 +139,72 @@ def _guess_audio_format(url: str) -> str:
     return "mp3"
 
 
+def _find_ffmpeg() -> str | None:
+    """找 ffmpeg：优先 PATH，其次用户机器上常见的固定安装位置。"""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    for c in (
+        os.path.expanduser("~/.workbuddy/tools/ffmpeg"),
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+    ):
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def _upload_to_volc_audio(audio_url: str) -> dict:
+    """把本地上传的音频（/uploads/...）压缩并转成火山可直接识别的 base64 data。
+
+    火山 submit 的 audio 对象支持两种来源：
+      - 公网 URL（audio.url）
+      - 请求体直传（audio.data = base64），无需公网地址 —— 本地上传走这条路。
+    """
+    local = os.path.join(UPLOAD_DIR, os.path.basename(audio_url.split("?", 1)[0]))
+    if not os.path.exists(local):
+        raise ValueError(f"本地上传的音频文件不存在：{local}")
+
+    src, cleanup = local, []
+    # 优先压缩成 16kHz 单声道 mp3（体积小、转写更快、base64 直传更稳）
+    ffmpeg = _find_ffmpeg()
+    if ffmpeg:
+        fd, out = tempfile.mkstemp(suffix=".mp3")
+        os.close(fd)
+        cmd = [ffmpeg, "-y", "-i", local, "-ar", "16000", "-ac", "1", "-b:a", "48k", out]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+            src, cleanup = out, [out]
+        except Exception:
+            pass  # 压缩失败则用原始文件（格式按扩展名推断）
+
+    try:
+        size = os.path.getsize(src)
+        if size > 90 * 1024 * 1024:
+            raise ValueError("音频文件过大（火山转写上限约 90MB），请先裁剪后再上传。")
+        with open(src, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        audio = {"data": b64}
+        fmt = _guess_audio_format(src)
+        if fmt:
+            audio["format"] = fmt
+        return audio
+    finally:
+        for p in cleanup:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+
 def volc_asr_transcribe(audio_url: str) -> list:
-    """火山引擎「豆包语音」录音文件识别模型2.0（异步 submit + query）。"""
-    if not audio_url.startswith(("http://", "https://")):
-        raise ValueError(
-            "火山 ASR 需要公网可访问的音频链接，本地上传的音频（/uploads/...）无法被火山服务器读取。"
-            "解决方式二选一：① 改用小宇宙链接导入节目；② 把 ASR_PROVIDER 设为 local_whisper（本机免费转写）。"
-        )
+    """火山引擎「豆包语音」录音文件识别模型2.0（异步 submit + query）。
+
+    支持两种音频来源：
+      - 公网链接（http/https）→ audio.url 方式
+      - 本地上传（/uploads/...）→ 自动压缩成 16kHz mp3 后 base64 直传（audio.data），无需公网地址
+    """
     if not VOLC_ASR_API_KEY:
         raise ValueError("未配置 VOLC_ASR_API_KEY（火山语音控制台创建；与方舟大模型 key 不同）")
 
@@ -155,8 +215,14 @@ def volc_asr_transcribe(audio_url: str) -> list:
         "X-Api-Resource-Id": VOLC_ASR_RESOURCE_ID,
         "X-Api-Request-Id": request_id,
     }
+    if audio_url.startswith("/uploads/"):
+        audio = _upload_to_volc_audio(audio_url)  # {"data": ..., "format": ...}
+    elif audio_url.startswith(("http://", "https://")):
+        audio = {"url": audio_url, "format": _guess_audio_format(audio_url), "rate": 16000}
+    else:
+        raise ValueError("无法识别的音频来源（仅支持 http/https 链接，或本地上传的 /uploads/... 路径）")
     payload = {
-        "audio": {"url": audio_url, "format": _guess_audio_format(audio_url), "rate": 16000},
+        "audio": audio,
         "request": {
             "model_name": "bigmodel",
             "enable_itn": True,

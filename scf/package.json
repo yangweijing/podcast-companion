@@ -1,0 +1,5 @@
+{
+  "type": "module",
+  "private": true,
+  "description": "播客伴读 SCF Web 函数入口（server.js 调用 worker.js）"
+}

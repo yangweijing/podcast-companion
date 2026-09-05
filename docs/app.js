@@ -23,51 +23,26 @@ let transcriptMode = 'listen';
 let currentNoteId = null;
 let currentAudioObjectUrl = null;
 
-/* ============ 边缘服务配置（存 localStorage） ============ */
+/* ============ 后端服务配置（内置固定，无网页修改入口） ============
+ * 后端固定指向腾讯云 SCF，地址与口令写死在这里，避免误改导致连不上。
+ * 如后端迁移/换口令，改下面两个默认值即可（改完需重新部署 GitHub Pages）。
+ * 兼容旧版：localStorage 里若已存过有效配置仍会优先使用（但页面不再提供修改入口）。 */
+
+const DEFAULT_WORKER = 'https://1481741504-54wcoxchdm.ap-chengdu.tencentscf.com';
+const DEFAULT_TOKEN = '25b4ecbc043aacfa9203f73ab6829b7a';
 
 const CFG = {
-  get worker() { return (localStorage.getItem('pc_worker') || '').replace(/\/+$/, ''); },
-  set worker(v) { localStorage.setItem('pc_worker', (v || '').trim().replace(/\/+$/, '')); },
-  get token() { return localStorage.getItem('pc_token') || ''; },
-  set token(v) { localStorage.setItem('pc_token', (v || '').trim()); },
-};
-
-function cfgFillForm() {
-  $('workerUrl').value = CFG.worker;
-  $('workerToken').value = CFG.token;
-  $('cfgStatus').textContent = CFG.worker
-    ? '当前服务：' + CFG.worker + '（信息只存在本机）'
-    : '尚未配置。链接解析、转写、AI 分析需要它转发（它不保存你的任何数据）。';
-}
-
-$('saveCfgBtn').onclick = () => {
-  CFG.worker = $('workerUrl').value;
-  CFG.token = $('workerToken').value;
-  cfgFillForm();
-  showNotice('已保存边缘服务设置');
-};
-$('testCfgBtn').onclick = async () => {
-  CFG.worker = $('workerUrl').value;
-  CFG.token = $('workerToken').value;
-  if (!CFG.worker) { showError('请先填写 Worker 地址'); return; }
-  $('cfgStatus').textContent = '测试中…';
-  try {
-    const r = await fetch(CFG.worker + '/health');
-    const j = await r.json();
-    $('cfgStatus').textContent = `连通正常 ✓  AI: ${j.llm_ready ? '已配置' : '缺 key'} · 转写: ${j.asr_ready ? '已配置' : '缺 key'}` + (j.auth ? ' · 已启用口令' : '');
-  } catch (e) {
-    $('cfgStatus').textContent = '连不上：' + e.message;
-  }
+  get worker() { return (localStorage.getItem('pc_worker') || DEFAULT_WORKER).replace(/\/+$/, ''); },
+  get token() { return localStorage.getItem('pc_token') || DEFAULT_TOKEN; },
 };
 
 async function apiWorker(path, body, isForm = false) {
-  if (!CFG.worker) throw new Error('请先在「边缘服务设置」里填写服务地址');
   const headers = {};
   if (CFG.token) headers.Authorization = 'Bearer ' + CFG.token;
   if (!isForm) headers['Content-Type'] = 'application/json';
   const r = await fetch(CFG.worker + path, { method: 'POST', headers, body: isForm ? body : JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) throw new Error('访问口令不正确，请在「边缘服务设置」里检查');
+  if (r.status === 401) throw new Error('访问口令不正确（请联系维护者检查后端 ACCESS_TOKEN）');
   if (!r.ok) throw new Error(j.error || ('请求失败（HTTP ' + r.status + '）'));
   return j;
 }
@@ -856,7 +831,6 @@ $('delBtn').onclick = async () => {
 /* ============ 启动：恢复进行中的转写任务 ============ */
 
 (async () => {
-  cfgFillForm();
   await loadEpisodes();
   await loadNoteLibrary();
   // 找出还在「处理中」的转写任务，静默恢复轮询

@@ -361,18 +361,6 @@
   <div class="notice" id="notice" role="status"></div>
 
 
-  <!-- 边缘服务设置：Worker 地址与访问口令只存本机 localStorage -->
-  <section class="card" style="margin-top:12px;">
-    <div class="section-title">后端服务设置</div>
-    <div class="inline-row" style="flex-wrap:wrap;gap:8px;">
-      <input type="text" id="workerUrl" placeholder="后端地址（如 https://xxx.vercel.app）" autocomplete="off">
-      <input type="text" id="workerToken" placeholder="访问口令（未设置可留空）" autocomplete="off">
-      <button class="btn" id="saveCfgBtn">保存</button>
-      <button class="btn ghost" id="testCfgBtn" style="width:auto;">测试连通</button>
-    </div>
-    <div class="hint" id="cfgStatus">链接解析 / 转写 / AI 分析需要后端转发（不存任何数据）。后端推荐部署在 Vercel（*.vercel.app，国内可直连）；地址填一次即记住。</div>
-  </section>
-
   <!-- 添加节目 -->
   <section class="view-panel active" id="view-library">
     <div class="card">

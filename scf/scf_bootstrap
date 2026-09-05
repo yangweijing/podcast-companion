@@ -1,0 +1,4 @@
+#!/bin/bash
+# 腾讯云 SCF Web 函数启动脚本
+# SCF 会执行本文件来拉起 HTTP 服务（必须监听 9000 端口）。
+exec /var/lang/node18/bin/node server.js
